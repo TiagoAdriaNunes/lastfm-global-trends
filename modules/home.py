@@ -16,9 +16,9 @@ _artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tracks_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tags_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 
-_FETCH_LIMIT = 500   # results per API request (API supports up to 1000)
-_FETCH_PAGES = 2     # 2 × 500 = 1000 total results
-_REQUEST_DELAY = 1   # seconds between requests
+_FETCH_LIMIT = 500  # results per API request (API supports up to 1000)
+_FETCH_PAGES = 2  # 2 × 500 = 1000 total results
+_REQUEST_DELAY = 1  # seconds between requests
 _ARTIST_TRACKS_PAGE_SIZE = 20
 _CHART_PAGE_SIZE = 20
 
@@ -330,11 +330,15 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @render_plotly
     def top_artists_chart():
-        return _top_artists_plot(top_artists_raw(), input.artist_metric() or "scrobbles")
+        return _top_artists_plot(
+            top_artists_raw(), input.artist_metric() or "scrobbles"
+        )
 
     @render.ui
     def top_artists_table():
-        return _dt(_fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS)
+        return _dt(
+            _fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS
+        )
 
     @render.ui
     def top_tracks_table():

@@ -41,9 +41,7 @@ def _text(node, tag: str) -> str:
 
 
 @cached(_geo_artists_cache)
-def _fetch_geo_top_artists(
-    network: pylast.LastFMNetwork, country: str
-) -> pd.DataFrame:
+def _fetch_geo_top_artists(network: pylast.LastFMNetwork, country: str) -> pd.DataFrame:
     rows = []
     for page in range(1, _FETCH_PAGES + 1):
         if page > 1:
@@ -73,9 +71,7 @@ def _fetch_geo_top_artists(
 
 
 @cached(_geo_tracks_cache)
-def _fetch_geo_top_tracks(
-    network: pylast.LastFMNetwork, country: str
-) -> pd.DataFrame:
+def _fetch_geo_top_tracks(network: pylast.LastFMNetwork, country: str) -> pd.DataFrame:
     rows = []
     for page in range(1, _FETCH_PAGES + 1):
         if page > 1:
