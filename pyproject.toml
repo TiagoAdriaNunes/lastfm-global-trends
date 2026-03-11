@@ -1,0 +1,10 @@
+[project]
+name = "lastfm-global-trends"
+version = "0.1.0"
+description = "Shiny for Python dashboard exploring global music trends via the Last.fm API"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pylast>=7.0.2",
+    "shiny>=1.5.1",
+]
