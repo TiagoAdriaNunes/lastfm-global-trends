@@ -114,8 +114,14 @@ def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df
 
 
-def _dt(df: pd.DataFrame) -> ui.HTML:
-    return ui.HTML(DT(df, pageLength=10, style="width:100%;margin:0"))
+_ARTISTS_COL_DEFS = [{"targets": 0, "width": "8%"}]
+_TRACKS_COL_DEFS = [{"targets": 0, "width": "8%"}, {"targets": 1, "width": "35%"}]
+
+
+def _dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
+    return ui.HTML(
+        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [])
+    )
 
 
 def _top_artists_plot(
@@ -324,11 +330,11 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @render.ui
     def top_artists_table():
-        return _dt(_fmt(top_artists_raw(), ["Listeners", "Scrobbles"]))
+        return _dt(_fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS)
 
     @render.ui
     def top_tracks_table():
-        return _dt(_fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]))
+        return _dt(_fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), _TRACKS_COL_DEFS)
 
     @render.text
     def top_track_artists_page_info():

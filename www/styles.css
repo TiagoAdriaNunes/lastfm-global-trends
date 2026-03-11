@@ -10,6 +10,18 @@
     width: 100%;
 }
 
+.dt-container table {
+    table-layout: fixed;
+    width: 100% !important;
+}
+
+.dt-container table td,
+.dt-container table th {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .artist-count-chart {
     display: grid;
     gap: 0.4rem;
