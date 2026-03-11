@@ -5,6 +5,20 @@ description = "Shiny for Python dashboard exploring global music trends via the 
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "jinja2>=3.1.6",
+    "pandas>=3.0.1",
     "pylast>=7.0.2",
     "shiny>=1.5.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.5",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
