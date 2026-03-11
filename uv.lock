@@ -134,6 +134,15 @@ wheels = [
 ]
 
 [[package]]
+name = "itables"
+version = "2.7.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/ef/fcdf0560e9a740c730d5164ded0fed7a76cd4cacf736c8e9c17a1b171207/itables-2.7.1.tar.gz", hash = "sha256:67f375e773ddf748da2ec2250fd21a242aaa63835b4ebe816840be01bcfa98e8", size = 2427429, upload-time = "2026-03-08T12:13:50.739Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2c/d6/e716e105fa915f25d156bcfdd4213f503290d4183afa507dc0c76570eeca/itables-2.7.1-py3-none-any.whl", hash = "sha256:4537c185bf2e2d08d5841a956bc8875d86721852a086edfbe94bf7550521c21f", size = 2462135, upload-time = "2026-03-08T12:13:48.548Z" },
+]
+
+[[package]]
 name = "jinja2"
 version = "3.1.6"
 source = { registry = "https://pypi.org/simple" }
@@ -151,6 +160,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "cachetools" },
+    { name = "itables" },
     { name = "jinja2" },
     { name = "pandas" },
     { name = "pylast" },
@@ -165,6 +175,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "cachetools", specifier = ">=7.0.5" },
+    { name = "itables", specifier = ">=2.7.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "pandas", specifier = ">=3.0.1" },
     { name = "pylast", specifier = ">=7.0.2" },

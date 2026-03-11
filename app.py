@@ -1,5 +1,6 @@
 import os
 
+from itables.shiny import init_itables
 from shiny import App, ui
 
 from modules.home import home_server, home_ui
@@ -8,6 +9,8 @@ API_KEY = os.environ["LASTFM_API_KEY"]
 API_SECRET = os.environ["LASTFM_API_SECRET"]
 
 app_ui = ui.page_fluid(
+    ui.HTML(init_itables()),
+    ui.include_css("www/styles.css"),
     ui.h1("Last.fm Global Trends"),
     home_ui("home"),
 )

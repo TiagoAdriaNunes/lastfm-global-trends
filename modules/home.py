@@ -1,6 +1,7 @@
 import pandas as pd
 import pylast
 from cachetools import TTLCache, cached
+from itables.shiny import DT
 from shiny import module, reactive, render, ui
 
 _artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
@@ -15,7 +16,7 @@ def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
 def _fetch_top_artists(network: pylast.LastFMNetwork, limit: int = 50) -> pd.DataFrame:
     items = network.get_top_artists(limit=limit)
     return pd.DataFrame(
-        [{"#": i + 1, "Artist": t.item.name, "Playcount": int(t.weight)} for i, t in enumerate(items)]
+        [{"Rank": i + 1, "Artist": t.item.name, "Playcount": int(t.weight)} for i, t in enumerate(items)]
     )
 
 
@@ -25,7 +26,7 @@ def _fetch_top_tracks(network: pylast.LastFMNetwork, limit: int = 50) -> pd.Data
     return pd.DataFrame(
         [
             {
-                "#": i + 1,
+                "Rank": i + 1,
                 "Track": t.item.title,
                 "Artist": t.item.artist.name,
                 "Playcount": int(t.weight),
@@ -40,11 +41,11 @@ def home_ui():
     return ui.layout_columns(
         ui.card(
             ui.card_header("Top Artists"),
-            ui.output_data_frame("top_artists_table"),
+            ui.output_ui("top_artists_table"),
         ),
         ui.card(
             ui.card_header("Top Tracks"),
-            ui.output_data_frame("top_tracks_table"),
+            ui.output_ui("top_tracks_table"),
         ),
         col_widths=[6, 6],
     )
@@ -56,20 +57,20 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @reactive.calc
     def top_artists():
-        return _fetch_top_artists(network)
+        df = _fetch_top_artists(network).copy()
+        df["Playcount"] = df["Playcount"].map("{:,}".format)
+        return df
 
     @reactive.calc
     def top_tracks():
-        return _fetch_top_tracks(network)
+        df = _fetch_top_tracks(network).copy()
+        df["Playcount"] = df["Playcount"].map("{:,}".format)
+        return df
 
-    @render.data_frame
+    @render.ui
     def top_artists_table():
-        df = top_artists().copy()
-        df["Playcount"] = df["Playcount"].map("{:,}".format)
-        return render.DataGrid(df, width="100%")
+        return ui.HTML(DT(top_artists(), pageLength=10, style="width:100%;margin:0"))
 
-    @render.data_frame
+    @render.ui
     def top_tracks_table():
-        df = top_tracks().copy()
-        df["Playcount"] = df["Playcount"].map("{:,}".format)
-        return render.DataGrid(df, width="100%")
+        return ui.HTML(DT(top_tracks(), pageLength=10, style="width:100%;margin:0"))
