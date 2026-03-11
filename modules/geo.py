@@ -15,10 +15,7 @@ _geo_tracks_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 
 
 # {value: label} — value sent to Last.fm API is the name, label shows code + name
-COUNTRY_CHOICES = {
-    name: f"({code}) {name}"
-    for name, code in COUNTRY_CODES.items()
-}
+COUNTRY_CHOICES = {name: f"({code}) {name}" for name, code in COUNTRY_CODES.items()}
 
 
 def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
@@ -51,11 +48,13 @@ def _fetch_geo_top_artists(
         return pd.DataFrame(columns=["Rank", "Artist", "Listeners"])
     rows = []
     for i, artist in enumerate(doc.getElementsByTagName("artist")):
-        rows.append({
-            "Rank": i + 1,
-            "Artist": _text(artist, "name"),
-            "Listeners": int(_text(artist, "listeners") or 0),
-        })
+        rows.append(
+            {
+                "Rank": i + 1,
+                "Artist": _text(artist, "name"),
+                "Listeners": int(_text(artist, "listeners") or 0),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -74,12 +73,14 @@ def _fetch_geo_top_tracks(
     for i, track in enumerate(doc.getElementsByTagName("track")):
         artist_nodes = track.getElementsByTagName("artist")
         artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
-        rows.append({
-            "Rank": i + 1,
-            "Track": _text(track, "name"),
-            "Artist": artist_name,
-            "Listeners": int(_text(track, "listeners") or 0),
-        })
+        rows.append(
+            {
+                "Rank": i + 1,
+                "Track": _text(track, "name"),
+                "Artist": artist_name,
+                "Listeners": int(_text(track, "listeners") or 0),
+            }
+        )
     return pd.DataFrame(rows)
 
 
