@@ -1,4 +1,5 @@
 import logging
+import time
 
 import pandas as pd
 import pylast
@@ -12,6 +13,10 @@ log = logging.getLogger(__name__)
 
 _geo_artists_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 _geo_tracks_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
+
+_FETCH_LIMIT = 500
+_FETCH_PAGES = 2
+_REQUEST_DELAY = 1
 
 
 # {value: label} — value sent to Last.fm API is the name, label shows code + name
@@ -37,51 +42,69 @@ def _text(node, tag: str) -> str:
 
 @cached(_geo_artists_cache)
 def _fetch_geo_top_artists(
-    network: pylast.LastFMNetwork, country: str, limit: int = 50
+    network: pylast.LastFMNetwork, country: str
 ) -> pd.DataFrame:
-    try:
-        doc = _raw_request(
-            network, "geo.getTopArtists", {"country": country, "limit": limit}
-        )
-    except pylast.WSError as e:
-        log.warning("geo.getTopArtists failed for %r: %s", country, e)
-        return pd.DataFrame(columns=["Rank", "Artist", "Listeners"])
     rows = []
-    for i, artist in enumerate(doc.getElementsByTagName("artist")):
-        rows.append(
-            {
-                "Rank": i + 1,
-                "Artist": _text(artist, "name"),
-                "Listeners": int(_text(artist, "listeners") or 0),
-            }
-        )
-    return pd.DataFrame(rows)
+    for page in range(1, _FETCH_PAGES + 1):
+        if page > 1:
+            time.sleep(_REQUEST_DELAY)
+        try:
+            doc = _raw_request(
+                network,
+                "geo.getTopArtists",
+                {"country": country, "limit": _FETCH_LIMIT, "page": page},
+            )
+        except pylast.WSError as e:
+            log.warning("geo.getTopArtists failed for %r page %d: %s", country, page, e)
+            break
+        offset = (page - 1) * _FETCH_LIMIT
+        for i, artist in enumerate(doc.getElementsByTagName("artist")):
+            rows.append(
+                {
+                    "Rank": offset + i + 1,
+                    "Artist": _text(artist, "name"),
+                    "Listeners": int(_text(artist, "listeners") or 0),
+                }
+            )
+    log.info("Fetched %d geo artists for %r", len(rows), country)
+    if rows:
+        return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["Rank", "Artist", "Listeners"])
 
 
 @cached(_geo_tracks_cache)
 def _fetch_geo_top_tracks(
-    network: pylast.LastFMNetwork, country: str, limit: int = 50
+    network: pylast.LastFMNetwork, country: str
 ) -> pd.DataFrame:
-    try:
-        doc = _raw_request(
-            network, "geo.getTopTracks", {"country": country, "limit": limit}
-        )
-    except pylast.WSError as e:
-        log.warning("geo.getTopTracks failed for %r: %s", country, e)
-        return pd.DataFrame(columns=["Rank", "Track", "Artist", "Listeners"])
     rows = []
-    for i, track in enumerate(doc.getElementsByTagName("track")):
-        artist_nodes = track.getElementsByTagName("artist")
-        artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
-        rows.append(
-            {
-                "Rank": i + 1,
-                "Track": _text(track, "name"),
-                "Artist": artist_name,
-                "Listeners": int(_text(track, "listeners") or 0),
-            }
-        )
-    return pd.DataFrame(rows)
+    for page in range(1, _FETCH_PAGES + 1):
+        if page > 1:
+            time.sleep(_REQUEST_DELAY)
+        try:
+            doc = _raw_request(
+                network,
+                "geo.getTopTracks",
+                {"country": country, "limit": _FETCH_LIMIT, "page": page},
+            )
+        except pylast.WSError as e:
+            log.warning("geo.getTopTracks failed for %r page %d: %s", country, page, e)
+            break
+        offset = (page - 1) * _FETCH_LIMIT
+        for i, track in enumerate(doc.getElementsByTagName("track")):
+            artist_nodes = track.getElementsByTagName("artist")
+            artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
+            rows.append(
+                {
+                    "Rank": offset + i + 1,
+                    "Track": _text(track, "name"),
+                    "Artist": artist_name,
+                    "Listeners": int(_text(track, "listeners") or 0),
+                }
+            )
+    log.info("Fetched %d geo tracks for %r", len(rows), country)
+    if rows:
+        return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["Rank", "Track", "Artist", "Listeners"])
 
 
 def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -106,11 +129,11 @@ def geo_ui():
         ),
         ui.layout_columns(
             ui.card(
-                ui.card_header("Top Artists"),
+                ui.card_header(f"Top Artists (Top {_FETCH_LIMIT * _FETCH_PAGES})"),
                 ui.output_ui("geo_artists_table"),
             ),
             ui.card(
-                ui.card_header("Top Tracks"),
+                ui.card_header(f"Top Tracks (Top {_FETCH_LIMIT * _FETCH_PAGES})"),
                 ui.output_ui("geo_tracks_table"),
             ),
             col_widths=[6, 6],
