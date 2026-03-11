@@ -1,7 +1,6 @@
 import xml.dom.minidom
 
 import pandas as pd
-import pytest
 
 from modules.home import _fmt, _text
 
