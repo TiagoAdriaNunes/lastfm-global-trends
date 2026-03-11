@@ -35,7 +35,7 @@ A **Shiny for Python** dashboard that connects to the [Last.fm API](https://www.
 4. Run the app:
 
    ```bash
-   uv run --env-file .env shiny run --reload app.py
+   uv run shiny run --reload app.py
    ```
 
 5. Open your browser at `http://127.0.0.1:8000`
