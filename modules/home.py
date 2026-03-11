@@ -20,6 +20,7 @@ _FETCH_LIMIT = 500   # results per API request (API supports up to 1000)
 _FETCH_PAGES = 2     # 2 × 500 = 1000 total results
 _REQUEST_DELAY = 1   # seconds between requests
 _ARTIST_TRACKS_PAGE_SIZE = 20
+_CHART_PAGE_SIZE = 20
 
 # chart.getTopTags pagination is broken on the Last.fm API — always returns the
 # same data regardless of page. Fetch all tags in a single request instead.
@@ -125,7 +126,9 @@ def _dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
 
 
 def _top_artists_plot(
-    artists_df: pd.DataFrame, metric: str = "scrobbles", top_n: int = 20
+    artists_df: pd.DataFrame,
+    metric: str = "scrobbles",
+    top_n: int = _CHART_PAGE_SIZE,
 ):
     if artists_df.empty:
         return px.bar(title="No artist data available")
@@ -219,17 +222,20 @@ def home_ui():
         ui.layout_columns(
             ui.card(
                 ui.card_header("Top Artists Chart (Listeners / Scrobbles)"),
-                ui.input_radio_buttons(
-                    "artist_metric",
-                    "Chart metric",
-                    choices={
-                        "listeners": "Listeners",
-                        "scrobbles": "Scrobbles",
-                    },
-                    selected="scrobbles",
-                    inline=True,
-                ),
                 output_widget("top_artists_chart"),
+                ui.div(
+                    {"style": "display:flex; justify-content:center;"},
+                    ui.input_radio_buttons(
+                        "artist_metric",
+                        "Chart metric",
+                        choices={
+                            "listeners": "Listeners",
+                            "scrobbles": "Scrobbles",
+                        },
+                        selected="scrobbles",
+                        inline=True,
+                    ),
+                ),
             ),
             ui.card(
                 ui.card_header(
@@ -324,9 +330,7 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @render_plotly
     def top_artists_chart():
-        return _top_artists_plot(
-            top_artists_raw(), input.artist_metric() or "scrobbles"
-        )
+        return _top_artists_plot(top_artists_raw(), input.artist_metric() or "scrobbles")
 
     @render.ui
     def top_artists_table():
