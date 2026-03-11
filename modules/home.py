@@ -3,24 +3,24 @@ import pylast
 from cachetools import TTLCache, cached
 from shiny import module, reactive, render, ui
 
-# Cache shared across all sessions, refreshed every hour
-_cache: TTLCache = TTLCache(maxsize=10, ttl=6 * 3600)
+_artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
+_tracks_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 
 
 def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
     return pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
 
 
-@cached(_cache)
-def _fetch_top_artists(network: pylast.LastFMNetwork, limit: int = 10) -> pd.DataFrame:
+@cached(_artists_cache)
+def _fetch_top_artists(network: pylast.LastFMNetwork, limit: int = 50) -> pd.DataFrame:
     items = network.get_top_artists(limit=limit)
     return pd.DataFrame(
         [{"#": i + 1, "Artist": t.item.name, "Playcount": int(t.weight)} for i, t in enumerate(items)]
     )
 
 
-@cached(_cache)
-def _fetch_top_tracks(network: pylast.LastFMNetwork, limit: int = 10) -> pd.DataFrame:
+@cached(_tracks_cache)
+def _fetch_top_tracks(network: pylast.LastFMNetwork, limit: int = 50) -> pd.DataFrame:
     items = network.get_top_tracks(limit=limit)
     return pd.DataFrame(
         [
