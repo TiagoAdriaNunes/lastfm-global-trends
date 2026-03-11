@@ -9,3 +9,63 @@
 .dt-container {
     width: 100%;
 }
+
+.artist-count-chart {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.artist-count-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    margin-top: 0.85rem;
+}
+
+.artist-count-controls .shiny-text-output {
+    color: #495057;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.artist-count-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 220px) 1fr 46px;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.artist-count-label {
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.artist-count-bar-wrap {
+    height: 0.8rem;
+    border-radius: 999px;
+    background: #eef2f7;
+    overflow: hidden;
+}
+
+.artist-count-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #1b6ef3, #4ea8ff);
+}
+
+.artist-count-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Keep Plotly toolbar controls from overlapping app nav/tab controls */
+.js-plotly-plot .plotly .modebar {
+    display: none !important;
+}
+
+.card {
+    overflow: hidden;
+}
