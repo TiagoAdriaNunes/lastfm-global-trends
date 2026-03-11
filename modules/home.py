@@ -12,6 +12,7 @@ _artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tracks_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tags_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 
+
 def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
     return pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
 
@@ -34,12 +35,14 @@ def _fetch_top_artists(network: pylast.LastFMNetwork, limit: int = 50) -> pd.Dat
     doc = _raw_request(network, "chart.getTopArtists", {"limit": limit})
     rows = []
     for i, artist in enumerate(doc.getElementsByTagName("artist")):
-        rows.append({
-            "Rank": i + 1,
-            "Artist": _text(artist, "name"),
-            "Listeners": int(_text(artist, "listeners") or 0),
-            "Scrobbles": int(_text(artist, "playcount") or 0),
-        })
+        rows.append(
+            {
+                "Rank": i + 1,
+                "Artist": _text(artist, "name"),
+                "Listeners": int(_text(artist, "listeners") or 0),
+                "Scrobbles": int(_text(artist, "playcount") or 0),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -50,13 +53,15 @@ def _fetch_top_tracks(network: pylast.LastFMNetwork, limit: int = 50) -> pd.Data
     for i, track in enumerate(doc.getElementsByTagName("track")):
         artist_nodes = track.getElementsByTagName("artist")
         artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
-        rows.append({
-            "Rank": i + 1,
-            "Track": _text(track, "name"),
-            "Artist": artist_name,
-            "Listeners": int(_text(track, "listeners") or 0),
-            "Scrobbles": int(_text(track, "playcount") or 0),
-        })
+        rows.append(
+            {
+                "Rank": i + 1,
+                "Track": _text(track, "name"),
+                "Artist": artist_name,
+                "Listeners": int(_text(track, "listeners") or 0),
+                "Scrobbles": int(_text(track, "playcount") or 0),
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -65,14 +70,15 @@ def _fetch_top_tags(network: pylast.LastFMNetwork, limit: int = 50) -> pd.DataFr
     doc = _raw_request(network, "chart.getTopTags", {"limit": limit})
     rows = []
     for i, tag in enumerate(doc.getElementsByTagName("tag")):
-        rows.append({
-            "Rank": i + 1,
-            "Tag": _text(tag, "name"),
-            "Reach": int(_text(tag, "reach") or 0),
-            "Taggings": int(_text(tag, "taggings") or 0),
-        })
+        rows.append(
+            {
+                "Rank": i + 1,
+                "Tag": _text(tag, "name"),
+                "Reach": int(_text(tag, "reach") or 0),
+                "Taggings": int(_text(tag, "taggings") or 0),
+            }
+        )
     return pd.DataFrame(rows)
-
 
 
 def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
@@ -137,4 +143,3 @@ def home_server(input, output, session, api_key: str, api_secret: str):
     @render.ui
     def top_tags_table():
         return _dt(top_tags())
-
