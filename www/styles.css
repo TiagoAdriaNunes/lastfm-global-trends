@@ -1,0 +1,11 @@
+.dt-container .dt-search input,
+.dt-container .dt-length select {
+    background-color: #fff !important;
+    color: #212529 !important;
+    border: 1px solid #ced4da !important;
+    color-scheme: light;
+}
+
+.dt-container {
+    width: 100%;
+}
