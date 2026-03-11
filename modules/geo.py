@@ -114,8 +114,14 @@ def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df
 
 
-def _dt(df: pd.DataFrame) -> ui.HTML:
-    return ui.HTML(DT(df, pageLength=10, style="width:100%;margin:0"))
+_ARTISTS_COL_DEFS = [{"targets": 0, "width": "8%"}]
+_TRACKS_COL_DEFS = [{"targets": 0, "width": "8%"}, {"targets": 1, "width": "35%"}]
+
+
+def _dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
+    return ui.HTML(
+        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [])
+    )
 
 
 @module.ui
@@ -159,8 +165,8 @@ def geo_server(input, output, session, api_key: str, api_secret: str):
 
     @render.ui
     def geo_artists_table():
-        return _dt(geo_artists())
+        return _dt(geo_artists(), _ARTISTS_COL_DEFS)
 
     @render.ui
     def geo_tracks_table():
-        return _dt(geo_tracks())
+        return _dt(geo_tracks(), _TRACKS_COL_DEFS)
