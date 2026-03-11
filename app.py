@@ -1,11 +1,14 @@
 import logging
 import os
 
+from dotenv import load_dotenv
 from itables.shiny import init_itables
 from shiny import App, ui
 
 from modules.geo import geo_server, geo_ui
 from modules.home import home_server, home_ui
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 

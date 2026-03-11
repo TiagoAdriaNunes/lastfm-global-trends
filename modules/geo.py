@@ -98,12 +98,11 @@ def _dt(df: pd.DataFrame) -> ui.HTML:
 @module.ui
 def geo_ui():
     return ui.div(
-        ui.input_select(
+        ui.input_selectize(
             "country",
             "Country",
             choices=COUNTRY_CHOICES,
             selected="United States",
-            selectize=True,
         ),
         ui.layout_columns(
             ui.card(
