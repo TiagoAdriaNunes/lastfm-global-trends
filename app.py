@@ -1,6 +1,9 @@
+import logging
 import os
 
 from itables.shiny import init_itables
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 from shiny import App, ui
 
 from modules.home import home_server, home_ui
