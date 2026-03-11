@@ -1,10 +1,38 @@
 import pandas as pd
 import pylast
+from cachetools import TTLCache, cached
 from shiny import module, reactive, render, ui
+
+# Cache shared across all sessions, refreshed every hour
+_cache: TTLCache = TTLCache(maxsize=10, ttl=6 * 3600)
 
 
 def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
     return pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
+
+
+@cached(_cache)
+def _fetch_top_artists(network: pylast.LastFMNetwork, limit: int = 10) -> pd.DataFrame:
+    items = network.get_top_artists(limit=limit)
+    return pd.DataFrame(
+        [{"#": i + 1, "Artist": t.item.name, "Playcount": int(t.weight)} for i, t in enumerate(items)]
+    )
+
+
+@cached(_cache)
+def _fetch_top_tracks(network: pylast.LastFMNetwork, limit: int = 10) -> pd.DataFrame:
+    items = network.get_top_tracks(limit=limit)
+    return pd.DataFrame(
+        [
+            {
+                "#": i + 1,
+                "Track": t.item.title,
+                "Artist": t.item.artist.name,
+                "Playcount": int(t.weight),
+            }
+            for i, t in enumerate(items)
+        ]
+    )
 
 
 @module.ui
@@ -28,28 +56,11 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @reactive.calc
     def top_artists():
-        items = network.get_top_artists(limit=10)
-        return pd.DataFrame(
-            [
-                {"#": i + 1, "Artist": t.item.name, "Playcount": int(t.weight)}
-                for i, t in enumerate(items)
-            ]
-        )
+        return _fetch_top_artists(network)
 
     @reactive.calc
     def top_tracks():
-        items = network.get_top_tracks(limit=10)
-        return pd.DataFrame(
-            [
-                {
-                    "#": i + 1,
-                    "Track": t.item.title,
-                    "Artist": t.item.artist.name,
-                    "Playcount": int(t.weight),
-                }
-                for i, t in enumerate(items)
-            ]
-        )
+        return _fetch_top_tracks(network)
 
     @render.data_frame
     def top_artists_table():
