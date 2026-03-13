@@ -16,15 +16,15 @@ _artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tracks_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tags_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 
-_FETCH_LIMIT = 500  # results per API request (API supports up to 1000)
-_FETCH_PAGES = 2  # 2 × 500 = 1000 total results
+_FETCH_LIMIT = 1000  # results per API request (API max)
+_FETCH_PAGES = 1  # single request of 1000
 _REQUEST_DELAY = 1  # seconds between requests
 _ARTIST_TRACKS_PAGE_SIZE = 20
 _CHART_PAGE_SIZE = 20
 
 # chart.getTopTags pagination is broken on the Last.fm API — always returns the
 # same data regardless of page. Fetch all tags in a single request instead.
-_TAGS_LIMIT = 250
+_TAGS_LIMIT = 1000
 
 
 def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
@@ -262,7 +262,7 @@ def home_ui():
         ),
         ui.layout_columns(
             ui.card(
-                ui.card_header(f"Top Tags (Top {_TAGS_LIMIT})"),
+                ui.card_header(f"Top Tags (Top {_TAGS_LIMIT:,})"),
                 ui.output_ui("top_tags_table"),
             ),
             col_widths=[12],

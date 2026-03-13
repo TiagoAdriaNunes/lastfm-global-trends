@@ -14,8 +14,8 @@ log = logging.getLogger(__name__)
 _geo_artists_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 _geo_tracks_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 
-_FETCH_LIMIT = 500
-_FETCH_PAGES = 2
+_FETCH_LIMIT = 1000  # results per API request (API max)
+_FETCH_PAGES = 1  # single request of 1000
 _REQUEST_DELAY = 1
 
 
