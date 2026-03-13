@@ -39,3 +39,42 @@ A **Shiny for Python** dashboard that connects to the [Last.fm API](https://www.
    ```
 
 5. Open your browser at `http://127.0.0.1:8000`
+
+## Deployment
+
+### Generating requirements.txt
+
+Before deploying, generate the `requirements.txt` file:
+
+```bash
+uv export --no-dev --no-hashes --no-annotate -o requirements.txt
+```
+
+### Deploying to shinyapps.io
+
+1. Install rsconnect-python:
+
+   ```bash
+   uv add --dev rsconnect-python
+   ```
+
+2. Get your credentials at [shinyapps.io](https://www.shinyapps.io) → Account → Tokens → Show → Show secret
+
+3. Configure the account (one-time setup):
+
+   ```bash
+   rsconnect add \
+     --account YOUR_ACCOUNT_NAME \
+     --name YOUR_ACCOUNT_NAME \
+     --token YOUR_TOKEN \
+     --secret YOUR_SECRET
+   ```
+
+4. Deploy:
+
+   ```bash
+   rsconnect deploy shiny . \
+     --name YOUR_ACCOUNT_NAME \
+     --title lastfm-global-trends
+   ```
+
