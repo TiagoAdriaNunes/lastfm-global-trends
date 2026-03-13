@@ -1,4 +1,4 @@
-# lastfm-global-trends
+# Shiny for Python Last.fm App
 
 A **Shiny for Python** dashboard that connects to the [Last.fm API](https://www.last.fm/api) via [pylast](https://pypi.org/project/pylast/) to explore global music trends.
 
