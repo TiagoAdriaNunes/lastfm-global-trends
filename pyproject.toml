@@ -19,6 +19,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "rsconnect-python>=1.28.2",
     "ruff>=0.15.5",
 ]
 
