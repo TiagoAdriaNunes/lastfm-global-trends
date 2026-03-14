@@ -2,7 +2,7 @@ import xml.dom.minidom
 
 import pylast
 
-from modules import geo
+from modules import geo, utils
 
 
 def _doc(xml_str: str):
@@ -15,7 +15,7 @@ def test_country_choices_uses_code_plus_name_format():
 
 def test_fetch_geo_top_artists_parses_response(monkeypatch):
     geo._geo_artists_cache.clear()
-    monkeypatch.setattr(geo, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -26,7 +26,7 @@ def test_fetch_geo_top_artists_parses_response(monkeypatch):
         """
     )
 
-    monkeypatch.setattr(geo, "raw_request", lambda *_args, **_kwargs: doc)
+    monkeypatch.setattr(utils, "raw_request", lambda *_args, **_kwargs: doc)
 
     result = geo._fetch_geo_top_artists(object(), "Brazil")
 
@@ -38,7 +38,7 @@ def test_fetch_geo_top_artists_parses_response(monkeypatch):
 
 def test_fetch_geo_top_tracks_parses_response(monkeypatch):
     geo._geo_tracks_cache.clear()
-    monkeypatch.setattr(geo, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -57,7 +57,7 @@ def test_fetch_geo_top_tracks_parses_response(monkeypatch):
         """
     )
 
-    monkeypatch.setattr(geo, "raw_request", lambda *_args, **_kwargs: doc)
+    monkeypatch.setattr(utils, "raw_request", lambda *_args, **_kwargs: doc)
 
     result = geo._fetch_geo_top_tracks(object(), "Brazil")
 
@@ -73,7 +73,7 @@ def test_fetch_geo_top_artists_returns_empty_on_ws_error(monkeypatch):
     def _raise_error(*_args, **_kwargs):
         raise pylast.WSError(None, 11, "Service Offline")
 
-    monkeypatch.setattr(geo, "raw_request", _raise_error)
+    monkeypatch.setattr(utils, "raw_request", _raise_error)
 
     result = geo._fetch_geo_top_artists(object(), "Brazil")
 
@@ -87,7 +87,7 @@ def test_fetch_geo_top_tracks_returns_empty_on_ws_error(monkeypatch):
     def _raise_error(*_args, **_kwargs):
         raise pylast.WSError(None, 11, "Service Offline")
 
-    monkeypatch.setattr(geo, "raw_request", _raise_error)
+    monkeypatch.setattr(utils, "raw_request", _raise_error)
 
     result = geo._fetch_geo_top_tracks(object(), "Brazil")
 
@@ -99,7 +99,7 @@ def test_fetch_geo_top_artists_empty_xml_returns_empty(monkeypatch):
     geo._geo_artists_cache.clear()
 
     doc = _doc("<topartists></topartists>")
-    monkeypatch.setattr(geo, "raw_request", lambda *_a, **_kw: doc)
+    monkeypatch.setattr(utils, "raw_request", lambda *_a, **_kw: doc)
 
     result = geo._fetch_geo_top_artists(object(), "Brazil")
 

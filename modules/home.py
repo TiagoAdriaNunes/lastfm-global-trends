@@ -1,5 +1,4 @@
 import logging
-import time
 from math import ceil
 
 import pandas as pd
@@ -13,10 +12,11 @@ from modules.utils import (
     _ARTISTS_COL_DEFS,
     _FETCH_LIMIT,
     _FETCH_PAGES,
-    _REQUEST_DELAY,
+    _TAGS_LIMIT,
     _TRACKS_COL_DEFS,
     build_network,
     dt,
+    fetch_paginated,
     fmt,
     raw_request,
     text,
@@ -31,63 +31,53 @@ _tags_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _ARTIST_TRACKS_PAGE_SIZE = 20
 _CHART_PAGE_SIZE = 20
 
-# chart.getTopTags pagination is broken on the Last.fm API — always returns the
-# same data regardless of page. Fetch all tags in a single request instead.
-_TAGS_LIMIT = 1000
-
 
 @cached(_artists_cache)
 def _fetch_top_artists(network: pylast.LastFMNetwork) -> pd.DataFrame:
-    rows = []
-    for page in range(1, _FETCH_PAGES + 1):
-        if page > 1:
-            time.sleep(_REQUEST_DELAY)
-        doc = raw_request(
-            network, "chart.getTopArtists", {"limit": _FETCH_LIMIT, "page": page}
-        )
-        offset = (page - 1) * _FETCH_LIMIT
-        for i, artist in enumerate(doc.getElementsByTagName("artist")):
-            rows.append(
-                {
-                    "Rank": offset + i + 1,
-                    "Artist": text(artist, "name"),
-                    "Listeners": int(text(artist, "listeners") or 0),
-                    "Scrobbles": int(text(artist, "playcount") or 0),
-                }
-            )
-    log.info("Fetched %d artists", len(rows))
-    return pd.DataFrame(rows)
+    return fetch_paginated(
+        network,
+        "chart.getTopArtists",
+        {},
+        "artist",
+        lambda el, rank: {
+            "Rank": rank,
+            "Artist": text(el, "name"),
+            "Listeners": int(text(el, "listeners") or 0),
+            "Scrobbles": int(text(el, "playcount") or 0),
+        },
+        ["Rank", "Artist", "Listeners", "Scrobbles"],
+    )
 
 
 @cached(_tracks_cache)
 def _fetch_top_tracks(network: pylast.LastFMNetwork) -> pd.DataFrame:
-    rows = []
-    for page in range(1, _FETCH_PAGES + 1):
-        if page > 1:
-            time.sleep(_REQUEST_DELAY)
-        doc = raw_request(
-            network, "chart.getTopTracks", {"limit": _FETCH_LIMIT, "page": page}
-        )
-        offset = (page - 1) * _FETCH_LIMIT
-        for i, track in enumerate(doc.getElementsByTagName("track")):
-            artist_nodes = track.getElementsByTagName("artist")
-            artist_name = text(artist_nodes[0], "name") if artist_nodes else ""
-            rows.append(
-                {
-                    "Rank": offset + i + 1,
-                    "Track": text(track, "name"),
-                    "Artist": artist_name,
-                    "Listeners": int(text(track, "listeners") or 0),
-                    "Scrobbles": int(text(track, "playcount") or 0),
-                }
-            )
-    log.info("Fetched %d tracks", len(rows))
-    return pd.DataFrame(rows)
+    def _row(el, rank):
+        artist_nodes = el.getElementsByTagName("artist")
+        return {
+            "Rank": rank,
+            "Track": text(el, "name"),
+            "Artist": text(artist_nodes[0], "name") if artist_nodes else "",
+            "Listeners": int(text(el, "listeners") or 0),
+            "Scrobbles": int(text(el, "playcount") or 0),
+        }
+
+    return fetch_paginated(
+        network,
+        "chart.getTopTracks",
+        {},
+        "track",
+        _row,
+        ["Rank", "Track", "Artist", "Listeners", "Scrobbles"],
+    )
 
 
 @cached(_tags_cache)
 def _fetch_top_tags(network: pylast.LastFMNetwork) -> pd.DataFrame:
-    doc = raw_request(network, "chart.getTopTags", {"limit": _TAGS_LIMIT})
+    try:
+        doc = raw_request(network, "chart.getTopTags", {"limit": _TAGS_LIMIT})
+    except pylast.WSError as e:
+        log.warning("chart.getTopTags failed: %s", e)
+        return pd.DataFrame(columns=["Rank", "Tag", "Reach", "Taggings"])
     rows = [
         {
             "Rank": i + 1,
@@ -158,8 +148,8 @@ def _artist_count_bars(df: pd.DataFrame, max_count: int | None = None) -> ui.Tag
         max_count = int(df["Tracks"].max()) or 1
     rows: list[ui.Tag] = []
     for row in df.itertuples(index=False):
-        artist = row[0]
-        count = int(row[1])
+        artist = row.Artist
+        count = int(row.Tracks)
         width_pct = max(1.0, (count / max_count) * 100)
         rows.append(
             ui.div(
