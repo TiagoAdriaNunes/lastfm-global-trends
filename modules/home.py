@@ -6,9 +6,21 @@ import pandas as pd
 import plotly.express as px
 import pylast
 from cachetools import TTLCache, cached
-from itables.shiny import DT
 from shiny import module, reactive, render, ui
 from shinywidgets import output_widget, render_plotly
+
+from modules.utils import (
+    _ARTISTS_COL_DEFS,
+    _FETCH_LIMIT,
+    _FETCH_PAGES,
+    _REQUEST_DELAY,
+    _TRACKS_COL_DEFS,
+    build_network,
+    dt,
+    fmt,
+    raw_request,
+    text,
+)
 
 log = logging.getLogger(__name__)
 
@@ -16,9 +28,6 @@ _artists_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tracks_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 _tags_cache: TTLCache = TTLCache(maxsize=5, ttl=6 * 3600)
 
-_FETCH_LIMIT = 1000  # results per API request (API max)
-_FETCH_PAGES = 1  # single request of 1000
-_REQUEST_DELAY = 1  # seconds between requests
 _ARTIST_TRACKS_PAGE_SIZE = 20
 _CHART_PAGE_SIZE = 20
 
@@ -27,30 +36,13 @@ _CHART_PAGE_SIZE = 20
 _TAGS_LIMIT = 1000
 
 
-def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
-    return pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
-
-
-def _raw_request(network: pylast.LastFMNetwork, method: str, params: dict):
-    log.info("Last.fm request: %s %s", method, params)
-    request = pylast._Request(network, method, params)
-    return request.execute(cacheable=True)
-
-
-def _text(node, tag: str) -> str:
-    els = node.getElementsByTagName(tag)
-    if els and els[0].firstChild:
-        return els[0].firstChild.nodeValue or ""
-    return ""
-
-
 @cached(_artists_cache)
 def _fetch_top_artists(network: pylast.LastFMNetwork) -> pd.DataFrame:
     rows = []
     for page in range(1, _FETCH_PAGES + 1):
         if page > 1:
             time.sleep(_REQUEST_DELAY)
-        doc = _raw_request(
+        doc = raw_request(
             network, "chart.getTopArtists", {"limit": _FETCH_LIMIT, "page": page}
         )
         offset = (page - 1) * _FETCH_LIMIT
@@ -58,9 +50,9 @@ def _fetch_top_artists(network: pylast.LastFMNetwork) -> pd.DataFrame:
             rows.append(
                 {
                     "Rank": offset + i + 1,
-                    "Artist": _text(artist, "name"),
-                    "Listeners": int(_text(artist, "listeners") or 0),
-                    "Scrobbles": int(_text(artist, "playcount") or 0),
+                    "Artist": text(artist, "name"),
+                    "Listeners": int(text(artist, "listeners") or 0),
+                    "Scrobbles": int(text(artist, "playcount") or 0),
                 }
             )
     log.info("Fetched %d artists", len(rows))
@@ -73,20 +65,20 @@ def _fetch_top_tracks(network: pylast.LastFMNetwork) -> pd.DataFrame:
     for page in range(1, _FETCH_PAGES + 1):
         if page > 1:
             time.sleep(_REQUEST_DELAY)
-        doc = _raw_request(
+        doc = raw_request(
             network, "chart.getTopTracks", {"limit": _FETCH_LIMIT, "page": page}
         )
         offset = (page - 1) * _FETCH_LIMIT
         for i, track in enumerate(doc.getElementsByTagName("track")):
             artist_nodes = track.getElementsByTagName("artist")
-            artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
+            artist_name = text(artist_nodes[0], "name") if artist_nodes else ""
             rows.append(
                 {
                     "Rank": offset + i + 1,
-                    "Track": _text(track, "name"),
+                    "Track": text(track, "name"),
                     "Artist": artist_name,
-                    "Listeners": int(_text(track, "listeners") or 0),
-                    "Scrobbles": int(_text(track, "playcount") or 0),
+                    "Listeners": int(text(track, "listeners") or 0),
+                    "Scrobbles": int(text(track, "playcount") or 0),
                 }
             )
     log.info("Fetched %d tracks", len(rows))
@@ -95,34 +87,17 @@ def _fetch_top_tracks(network: pylast.LastFMNetwork) -> pd.DataFrame:
 
 @cached(_tags_cache)
 def _fetch_top_tags(network: pylast.LastFMNetwork) -> pd.DataFrame:
-    doc = _raw_request(network, "chart.getTopTags", {"limit": _TAGS_LIMIT})
+    doc = raw_request(network, "chart.getTopTags", {"limit": _TAGS_LIMIT})
     rows = [
         {
             "Rank": i + 1,
-            "Tag": _text(tag, "name"),
-            "Reach": int(_text(tag, "reach") or 0),
-            "Taggings": int(_text(tag, "taggings") or 0),
+            "Tag": text(tag, "name"),
+            "Reach": int(text(tag, "reach") or 0),
+            "Taggings": int(text(tag, "taggings") or 0),
         }
         for i, tag in enumerate(doc.getElementsByTagName("tag"))
     ]
     return pd.DataFrame(rows)
-
-
-def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    df = df.copy()
-    for col in cols:
-        df[col] = df[col].map("{:,}".format)
-    return df
-
-
-_ARTISTS_COL_DEFS = [{"targets": 0, "width": "8%"}]
-_TRACKS_COL_DEFS = [{"targets": 0, "width": "8%"}, {"targets": 1, "width": "35%"}]
-
-
-def _dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
-    return ui.HTML(
-        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [])
-    )
 
 
 def _top_artists_plot(
@@ -272,7 +247,7 @@ def home_ui():
 
 @module.server
 def home_server(input, output, session, api_key: str, api_secret: str):
-    network = _build_network(api_key, api_secret)
+    network = build_network(api_key, api_secret)
 
     @reactive.calc
     def top_artists_raw():
@@ -336,13 +311,13 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @render.ui
     def top_artists_table():
-        return _dt(
-            _fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS
+        return dt(
+            fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS
         )
 
     @render.ui
     def top_tracks_table():
-        return _dt(_fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), _TRACKS_COL_DEFS)
+        return dt(fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), _TRACKS_COL_DEFS)
 
     @render.text
     def top_track_artists_page_info():
@@ -360,4 +335,4 @@ def home_server(input, output, session, api_key: str, api_secret: str):
 
     @render.ui
     def top_tags_table():
-        return _dt(_fmt(_fetch_top_tags(network), ["Reach", "Taggings"]))
+        return dt(fmt(_fetch_top_tags(network), ["Reach", "Taggings"]))

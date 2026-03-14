@@ -26,7 +26,7 @@ def test_fetch_geo_top_artists_parses_response(monkeypatch):
         """
     )
 
-    monkeypatch.setattr(geo, "_raw_request", lambda *_args, **_kwargs: doc)
+    monkeypatch.setattr(geo, "raw_request", lambda *_args, **_kwargs: doc)
 
     result = geo._fetch_geo_top_artists(object(), "Brazil")
 
@@ -57,7 +57,7 @@ def test_fetch_geo_top_tracks_parses_response(monkeypatch):
         """
     )
 
-    monkeypatch.setattr(geo, "_raw_request", lambda *_args, **_kwargs: doc)
+    monkeypatch.setattr(geo, "raw_request", lambda *_args, **_kwargs: doc)
 
     result = geo._fetch_geo_top_tracks(object(), "Brazil")
 
@@ -73,7 +73,7 @@ def test_fetch_geo_top_artists_returns_empty_on_ws_error(monkeypatch):
     def _raise_error(*_args, **_kwargs):
         raise pylast.WSError(None, 11, "Service Offline")
 
-    monkeypatch.setattr(geo, "_raw_request", _raise_error)
+    monkeypatch.setattr(geo, "raw_request", _raise_error)
 
     result = geo._fetch_geo_top_artists(object(), "Brazil")
 
@@ -87,7 +87,7 @@ def test_fetch_geo_top_tracks_returns_empty_on_ws_error(monkeypatch):
     def _raise_error(*_args, **_kwargs):
         raise pylast.WSError(None, 11, "Service Offline")
 
-    monkeypatch.setattr(geo, "_raw_request", _raise_error)
+    monkeypatch.setattr(geo, "raw_request", _raise_error)
 
     result = geo._fetch_geo_top_tracks(object(), "Brazil")
 
