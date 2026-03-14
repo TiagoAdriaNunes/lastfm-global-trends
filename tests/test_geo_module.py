@@ -15,7 +15,7 @@ def test_country_choices_uses_code_plus_name_format():
 
 def test_fetch_geo_top_artists_parses_response(monkeypatch):
     geo._geo_artists_cache.clear()
-    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -38,7 +38,7 @@ def test_fetch_geo_top_artists_parses_response(monkeypatch):
 
 def test_fetch_geo_top_tracks_parses_response(monkeypatch):
     geo._geo_tracks_cache.clear()
-    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
 
     doc = _doc(
         """

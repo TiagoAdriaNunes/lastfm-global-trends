@@ -132,7 +132,7 @@ def test_artist_count_bars_min_width_floor():
 
 def test_fetch_top_artists_parses_response(monkeypatch):
     home._artists_cache.clear()
-    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -154,7 +154,7 @@ def test_fetch_top_artists_parses_response(monkeypatch):
 
 def test_fetch_top_tracks_parses_response(monkeypatch):
     home._tracks_cache.clear()
-    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
 
     doc = _doc(
         """

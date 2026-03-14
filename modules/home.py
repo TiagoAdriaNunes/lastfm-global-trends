@@ -9,11 +9,11 @@ from shiny import module, reactive, render, ui
 from shinywidgets import output_widget, render_plotly
 
 from modules.utils import (
-    _ARTISTS_COL_DEFS,
-    _FETCH_LIMIT,
-    _FETCH_PAGES,
-    _TAGS_LIMIT,
-    _TRACKS_COL_DEFS,
+    ARTISTS_COL_DEFS,
+    FETCH_LIMIT,
+    FETCH_PAGES,
+    TAGS_LIMIT,
+    TRACKS_COL_DEFS,
     build_network,
     dt,
     fetch_paginated,
@@ -34,6 +34,14 @@ _CHART_PAGE_SIZE = 20
 
 @cached(_artists_cache)
 def _fetch_top_artists(network: pylast.LastFMNetwork) -> pd.DataFrame:
+    """Fetch global top artists from the Last.fm chart API (cached 6 h).
+
+    Args:
+        network: Authenticated Last.fm network instance.
+
+    Returns:
+        DataFrame with columns: Rank, Artist, Listeners, Scrobbles.
+    """
     return fetch_paginated(
         network,
         "chart.getTopArtists",
@@ -51,6 +59,14 @@ def _fetch_top_artists(network: pylast.LastFMNetwork) -> pd.DataFrame:
 
 @cached(_tracks_cache)
 def _fetch_top_tracks(network: pylast.LastFMNetwork) -> pd.DataFrame:
+    """Fetch global top tracks from the Last.fm chart API (cached 6 h).
+
+    Args:
+        network: Authenticated Last.fm network instance.
+
+    Returns:
+        DataFrame with columns: Rank, Track, Artist, Listeners, Scrobbles.
+    """
     def _row(el, rank):
         artist_nodes = el.getElementsByTagName("artist")
         return {
@@ -73,8 +89,21 @@ def _fetch_top_tracks(network: pylast.LastFMNetwork) -> pd.DataFrame:
 
 @cached(_tags_cache)
 def _fetch_top_tags(network: pylast.LastFMNetwork) -> pd.DataFrame:
+    """Fetch global top tags from the Last.fm chart API (cached 6 h).
+
+    Uses a single request instead of pagination because the Last.fm
+    chart.getTopTags endpoint ignores the page parameter and always
+    returns the same data.
+
+    Args:
+        network: Authenticated Last.fm network instance.
+
+    Returns:
+        DataFrame with columns: Rank, Tag, Reach, Taggings. Returns an
+        empty DataFrame if the API call fails.
+    """
     try:
-        doc = raw_request(network, "chart.getTopTags", {"limit": _TAGS_LIMIT})
+        doc = raw_request(network, "chart.getTopTags", {"limit": TAGS_LIMIT})
     except pylast.WSError as e:
         log.warning("chart.getTopTags failed: %s", e)
         return pd.DataFrame(columns=["Rank", "Tag", "Reach", "Taggings"])
@@ -95,6 +124,16 @@ def _top_artists_plot(
     metric: str = "scrobbles",
     top_n: int = _CHART_PAGE_SIZE,
 ):
+    """Build a horizontal bar chart of the top artists by listeners or scrobbles.
+
+    Args:
+        artists_df: DataFrame with at least Artist, Listeners, and Scrobbles columns.
+        metric: Which metric to plot — "listeners" or "scrobbles".
+        top_n: Number of top artists to include in the chart.
+
+    Returns:
+        A Plotly Figure object, or an empty bar chart figure if artists_df is empty.
+    """
     if artists_df.empty:
         return px.bar(title="No artist data available")
 
@@ -123,6 +162,16 @@ def _top_artists_plot(
 def _artist_track_counts(
     tracks_df: pd.DataFrame, top_n: int | None = None
 ) -> pd.DataFrame:
+    """Count how many top tracks each artist appears in, sorted descending.
+
+    Args:
+        tracks_df: DataFrame with an Artist column.
+        top_n: If provided, limit results to the top N artists by track count.
+
+    Returns:
+        DataFrame with columns: Artist, Tracks. Returns an empty DataFrame
+        if tracks_df is empty or has no Artist column.
+    """
     if tracks_df.empty or "Artist" not in tracks_df.columns:
         return pd.DataFrame(columns=["Artist", "Tracks"])
     counts = (
@@ -141,6 +190,20 @@ def _artist_track_counts(
 
 
 def _artist_count_bars(df: pd.DataFrame, max_count: int | None = None) -> ui.Tag:
+    """Render a custom HTML bar chart for artist track counts.
+
+    Each row displays the artist name, a proportional bar, and the count value.
+    Bar widths are scaled relative to max_count.
+
+    Args:
+        df: DataFrame with Artist and Tracks columns (one row per artist).
+        max_count: The count value that represents 100% bar width. Defaults to
+            the maximum in df if not provided.
+
+    Returns:
+        A Shiny ui.Tag containing the bar chart, or a "No data available" paragraph
+        if df is empty.
+    """
     if df.empty:
         return ui.p("No data available.")
 
@@ -172,14 +235,21 @@ def _artist_count_bars(df: pd.DataFrame, max_count: int | None = None) -> ui.Tag
 
 @module.ui
 def home_ui():
+    """Render the Global Trends module UI.
+
+    Returns:
+        A Shiny div containing artist and track DataTables, a top-artists
+        bar chart with metric toggle, a paginated artist-track-count chart,
+        and a top tags DataTable.
+    """
     return ui.div(
         ui.layout_columns(
             ui.card(
-                ui.card_header(f"Top Artists (Top {_FETCH_LIMIT * _FETCH_PAGES})"),
+                ui.card_header(f"Top Artists (Top {FETCH_LIMIT * FETCH_PAGES})"),
                 ui.output_ui("top_artists_table"),
             ),
             ui.card(
-                ui.card_header(f"Top Tracks (Top {_FETCH_LIMIT * _FETCH_PAGES})"),
+                ui.card_header(f"Top Tracks (Top {FETCH_LIMIT * FETCH_PAGES})"),
                 ui.output_ui("top_tracks_table"),
             ),
             col_widths=[6, 6],
@@ -205,7 +275,7 @@ def home_ui():
             ui.card(
                 ui.card_header(
                     "Artists With Most Tracks in Top Tracks "
-                    f"(Top {_FETCH_LIMIT * _FETCH_PAGES})"
+                    f"(Top {FETCH_LIMIT * FETCH_PAGES})"
                 ),
                 ui.output_ui("top_track_artists_chart"),
                 ui.div(
@@ -227,7 +297,7 @@ def home_ui():
         ),
         ui.layout_columns(
             ui.card(
-                ui.card_header(f"Top Tags (Top {_TAGS_LIMIT:,})"),
+                ui.card_header(f"Top Tags (Top {TAGS_LIMIT:,})"),
                 ui.output_ui("top_tags_table"),
             ),
             col_widths=[12],
@@ -237,6 +307,22 @@ def home_ui():
 
 @module.server
 def home_server(input, output, session, api_key: str, api_secret: str):
+    """Run the Global Trends module server logic.
+
+    Builds a Last.fm network connection and registers reactive calculations
+    and renderers for the top artists chart, top artists/tracks tables,
+    paginated artist-track-count chart, and top tags table.
+
+    Args:
+        input: Shiny input object (reads: artist_metric, track_artists_prev,
+            track_artists_next).
+        output: Shiny output object (writes: top_artists_chart, top_artists_table,
+            top_tracks_table, top_track_artists_chart, top_track_artists_page_info,
+            top_tags_table).
+        session: Shiny session object.
+        api_key: Last.fm API key.
+        api_secret: Last.fm API secret.
+    """
     network = build_network(api_key, api_secret)
 
     @reactive.calc
@@ -302,12 +388,12 @@ def home_server(input, output, session, api_key: str, api_secret: str):
     @render.ui
     def top_artists_table():
         return dt(
-            fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), _ARTISTS_COL_DEFS
+            fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), ARTISTS_COL_DEFS
         )
 
     @render.ui
     def top_tracks_table():
-        return dt(fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), _TRACKS_COL_DEFS)
+        return dt(fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), TRACKS_COL_DEFS)
 
     @render.text
     def top_track_artists_page_info():
