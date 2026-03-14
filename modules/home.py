@@ -111,7 +111,7 @@ def _top_artists_plot(
     )
     fig.update_layout(
         height=520,
-        margin=dict(l=8, r=8, t=8, b=16),
+        margin={"l": 8, "r": 8, "t": 8, "b": 16},
         showlegend=False,
         xaxis_title=metric_col,
         yaxis_title="",
