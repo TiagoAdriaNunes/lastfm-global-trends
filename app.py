@@ -12,6 +12,8 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
+log = logging.getLogger(__name__)
+
 API_KEY = os.environ["LASTFM_API_KEY"]
 API_SECRET = os.environ["LASTFM_API_SECRET"]
 
