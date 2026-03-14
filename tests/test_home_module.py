@@ -2,7 +2,7 @@ import xml.dom.minidom
 
 import pandas as pd
 
-from modules import home
+from modules import home, utils
 from modules.home import _artist_count_bars, _artist_track_counts, _top_artists_plot
 
 
@@ -132,7 +132,7 @@ def test_artist_count_bars_min_width_floor():
 
 def test_fetch_top_artists_parses_response(monkeypatch):
     home._artists_cache.clear()
-    monkeypatch.setattr(home, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -142,7 +142,7 @@ def test_fetch_top_artists_parses_response(monkeypatch):
         </artists>
         """
     )
-    monkeypatch.setattr(home, "raw_request", lambda *_a, **_kw: doc)
+    monkeypatch.setattr(utils, "raw_request", lambda *_a, **_kw: doc)
 
     result = home._fetch_top_artists(object())
 
@@ -154,7 +154,7 @@ def test_fetch_top_artists_parses_response(monkeypatch):
 
 def test_fetch_top_tracks_parses_response(monkeypatch):
     home._tracks_cache.clear()
-    monkeypatch.setattr(home, "_FETCH_PAGES", 1)
+    monkeypatch.setattr(utils, "_FETCH_PAGES", 1)
 
     doc = _doc(
         """
@@ -168,7 +168,7 @@ def test_fetch_top_tracks_parses_response(monkeypatch):
         </tracks>
         """
     )
-    monkeypatch.setattr(home, "raw_request", lambda *_a, **_kw: doc)
+    monkeypatch.setattr(utils, "raw_request", lambda *_a, **_kw: doc)
 
     result = home._fetch_top_tracks(object())
 
