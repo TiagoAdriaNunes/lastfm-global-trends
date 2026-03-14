@@ -2,7 +2,7 @@ import xml.dom.minidom
 
 import pandas as pd
 
-from modules.utils import fmt as _fmt, text as _text
+from modules.utils import dt, fmt as _fmt, text as _text
 
 
 def _make_node(xml_str: str):
@@ -41,3 +41,9 @@ def test_fmt_untouched_columns_unchanged():
     df = pd.DataFrame({"Rank": [1, 2], "Listeners": [1000, 500]})
     result = _fmt(df, ["Listeners"])
     assert result["Rank"].tolist() == [1, 2]
+
+
+def test_dt_returns_html():
+    df = pd.DataFrame({"Artist": ["Radiohead"], "Listeners": [1000]})
+    result = dt(df)
+    assert hasattr(result, "get_html_string") or "<table" in str(result).lower()
