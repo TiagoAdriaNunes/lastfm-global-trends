@@ -4,40 +4,29 @@ import time
 import pandas as pd
 import pylast
 from cachetools import TTLCache, cached
-from itables.shiny import DT
 from shiny import module, reactive, render, ui
 
 from countries import COUNTRY_CODES
+from modules.utils import (
+    _ARTISTS_COL_DEFS,
+    _FETCH_LIMIT,
+    _FETCH_PAGES,
+    _REQUEST_DELAY,
+    _TRACKS_COL_DEFS,
+    build_network,
+    dt,
+    fmt,
+    raw_request,
+    text,
+)
 
 log = logging.getLogger(__name__)
 
 _geo_artists_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 _geo_tracks_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 
-_FETCH_LIMIT = 1000  # results per API request (API max)
-_FETCH_PAGES = 1  # single request of 1000
-_REQUEST_DELAY = 1
-
-
 # {value: label} — value sent to Last.fm API is the name, label shows code + name
 COUNTRY_CHOICES = {name: f"({code}) {name}" for name, code in COUNTRY_CODES.items()}
-
-
-def _build_network(api_key: str, api_secret: str) -> pylast.LastFMNetwork:
-    return pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
-
-
-def _raw_request(network: pylast.LastFMNetwork, method: str, params: dict):
-    log.info("Last.fm request: %s %s", method, params)
-    request = pylast._Request(network, method, params)
-    return request.execute(cacheable=True)
-
-
-def _text(node, tag: str) -> str:
-    els = node.getElementsByTagName(tag)
-    if els and els[0].firstChild:
-        return els[0].firstChild.nodeValue or ""
-    return ""
 
 
 @cached(_geo_artists_cache)
@@ -47,7 +36,7 @@ def _fetch_geo_top_artists(network: pylast.LastFMNetwork, country: str) -> pd.Da
         if page > 1:
             time.sleep(_REQUEST_DELAY)
         try:
-            doc = _raw_request(
+            doc = raw_request(
                 network,
                 "geo.getTopArtists",
                 {"country": country, "limit": _FETCH_LIMIT, "page": page},
@@ -60,8 +49,8 @@ def _fetch_geo_top_artists(network: pylast.LastFMNetwork, country: str) -> pd.Da
             rows.append(
                 {
                     "Rank": offset + i + 1,
-                    "Artist": _text(artist, "name"),
-                    "Listeners": int(_text(artist, "listeners") or 0),
+                    "Artist": text(artist, "name"),
+                    "Listeners": int(text(artist, "listeners") or 0),
                 }
             )
     log.info("Fetched %d geo artists for %r", len(rows), country)
@@ -77,7 +66,7 @@ def _fetch_geo_top_tracks(network: pylast.LastFMNetwork, country: str) -> pd.Dat
         if page > 1:
             time.sleep(_REQUEST_DELAY)
         try:
-            doc = _raw_request(
+            doc = raw_request(
                 network,
                 "geo.getTopTracks",
                 {"country": country, "limit": _FETCH_LIMIT, "page": page},
@@ -88,36 +77,19 @@ def _fetch_geo_top_tracks(network: pylast.LastFMNetwork, country: str) -> pd.Dat
         offset = (page - 1) * _FETCH_LIMIT
         for i, track in enumerate(doc.getElementsByTagName("track")):
             artist_nodes = track.getElementsByTagName("artist")
-            artist_name = _text(artist_nodes[0], "name") if artist_nodes else ""
+            artist_name = text(artist_nodes[0], "name") if artist_nodes else ""
             rows.append(
                 {
                     "Rank": offset + i + 1,
-                    "Track": _text(track, "name"),
+                    "Track": text(track, "name"),
                     "Artist": artist_name,
-                    "Listeners": int(_text(track, "listeners") or 0),
+                    "Listeners": int(text(track, "listeners") or 0),
                 }
             )
     log.info("Fetched %d geo tracks for %r", len(rows), country)
     if rows:
         return pd.DataFrame(rows)
     return pd.DataFrame(columns=["Rank", "Track", "Artist", "Listeners"])
-
-
-def _fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    df = df.copy()
-    for col in cols:
-        df[col] = df[col].map("{:,}".format)
-    return df
-
-
-_ARTISTS_COL_DEFS = [{"targets": 0, "width": "8%"}]
-_TRACKS_COL_DEFS = [{"targets": 0, "width": "8%"}, {"targets": 1, "width": "35%"}]
-
-
-def _dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
-    return ui.HTML(
-        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [])
-    )
 
 
 @module.ui
@@ -145,24 +117,24 @@ def geo_ui():
 
 @module.server
 def geo_server(input, output, session, api_key: str, api_secret: str):
-    network = _build_network(api_key, api_secret)
+    network = build_network(api_key, api_secret)
 
     @reactive.calc
     def geo_artists():
         if not input.country():
             return pd.DataFrame(columns=["Rank", "Artist", "Listeners"])
-        return _fmt(_fetch_geo_top_artists(network, input.country()), ["Listeners"])
+        return fmt(_fetch_geo_top_artists(network, input.country()), ["Listeners"])
 
     @reactive.calc
     def geo_tracks():
         if not input.country():
             return pd.DataFrame(columns=["Rank", "Track", "Artist", "Listeners"])
-        return _fmt(_fetch_geo_top_tracks(network, input.country()), ["Listeners"])
+        return fmt(_fetch_geo_top_tracks(network, input.country()), ["Listeners"])
 
     @render.ui
     def geo_artists_table():
-        return _dt(geo_artists(), _ARTISTS_COL_DEFS)
+        return dt(geo_artists(), _ARTISTS_COL_DEFS)
 
     @render.ui
     def geo_tracks_table():
-        return _dt(geo_tracks(), _TRACKS_COL_DEFS)
+        return dt(geo_tracks(), _TRACKS_COL_DEFS)
