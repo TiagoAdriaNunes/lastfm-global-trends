@@ -10,7 +10,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "pandas>=3.0.1",
     "plotly>=6.3.1",
-    "pylast>=7.0.2",
+    "pylast==7.0.2",  # pinned: raw_request() uses pylast._Request (private API) — verify on upgrade
     "python-dotenv>=1.2.2",
     "shiny>=1.5.1",
     "shinywidgets>=0.7.0",

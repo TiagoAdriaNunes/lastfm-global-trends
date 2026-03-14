@@ -27,6 +27,13 @@ app_ui = ui.page_navbar(
 
 
 def server(input, output, session):
+    """Initialize and wire up all Shiny module servers.
+
+    Args:
+        input: Shiny input object.
+        output: Shiny output object.
+        session: Shiny session object.
+    """
     home_server("home", api_key=API_KEY, api_secret=API_SECRET)
     geo_server("geo", api_key=API_KEY, api_secret=API_SECRET)
 
