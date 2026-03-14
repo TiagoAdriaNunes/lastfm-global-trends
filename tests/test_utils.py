@@ -2,7 +2,9 @@ import xml.dom.minidom
 
 import pandas as pd
 
-from modules.utils import dt, fmt as _fmt, text as _text
+from modules.utils import dt
+from modules.utils import fmt as _fmt
+from modules.utils import text as _text
 
 
 def _make_node(xml_str: str):
