@@ -93,3 +93,15 @@ def test_fetch_geo_top_tracks_returns_empty_on_ws_error(monkeypatch):
 
     assert result.empty
     assert list(result.columns) == ["Rank", "Track", "Artist", "Listeners"]
+
+
+def test_fetch_geo_top_artists_empty_xml_returns_empty(monkeypatch):
+    geo._geo_artists_cache.clear()
+
+    doc = _doc("<topartists></topartists>")
+    monkeypatch.setattr(geo, "raw_request", lambda *_a, **_kw: doc)
+
+    result = geo._fetch_geo_top_artists(object(), "Brazil")
+
+    assert result.empty
+    assert list(result.columns) == ["Rank", "Artist", "Listeners"]
