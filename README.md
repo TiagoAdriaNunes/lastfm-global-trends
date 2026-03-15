@@ -80,3 +80,77 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
      --title lastfm-global-trends
    ```
 
+## Data Fetching
+
+The app reads from a local DuckDB database (`data/trends.db`). The `fetch_countries.py` script populates it by pulling top artists and tracks from the Last.fm API for every supported country plus global charts.
+
+### Basic usage
+
+```bash
+uv run python fetch_countries.py
+```
+
+Fetches all countries and global charts. Data already in the DB is skipped if it was fetched within the last **7 days** (default) and the row count looks complete.
+
+Logs are written to `data/logs/run_<timestamp>.log` and a JSON summary to `data/logs/summary_<timestamp>.json`.
+
+### Options
+
+#### `--max-age HOURS`
+
+Controls how old data must be before it is re-fetched. Defaults to `168` (7 days).
+
+```bash
+# Re-fetch anything older than 24 hours
+uv run python fetch_countries.py --max-age 24
+
+# Weekly scheduled run (explicit)
+uv run python fetch_countries.py --max-age 168
+```
+
+> **Note:** Even within the max-age window, a country is always re-fetched if the number of pages returned by the API no longer matches what is stored in the DB (e.g. new artists entered the chart).
+
+#### `--max-age 0` — Force full refresh
+
+Set `--max-age 0` to force a complete re-fetch of everything regardless of when it was last imported:
+
+```bash
+uv run python fetch_countries.py --max-age 0
+```
+
+#### `--only` — Fetch specific countries
+
+Pass a comma-separated list of country display names to limit the run. Global charts are skipped when `--only` is used.
+
+```bash
+# Single country
+uv run python fetch_countries.py --only "France"
+
+# Multiple countries
+uv run python fetch_countries.py --only "France,Germany,Japan"
+
+# Force refresh for specific countries only
+uv run python fetch_countries.py --only "France,Germany" --max-age 0
+```
+
+Country names must match the display names in the app (e.g. `"Côte d'Ivoire"`, `"Türkiye"`, `"Czechia"`). A full list can be found in `countries.py`.
+
+### How the skip logic works
+
+On each run, for every country the script:
+
+1. Checks `fetched_at` in the DB — if older than `--max-age`, marks it **stale**
+2. Fetches page 1 from the API (always, to get the current page count)
+3. Compares the API page count against the DB row count:
+   - **Fresh + count matches** → skip entirely, no write
+   - **Fresh + count mismatch** → re-fetch all pages and replace DB rows
+   - **Stale** → re-fetch all pages and replace DB rows unconditionally
+
+When rows are written, the script verifies the saved count matches the fetched count and logs a warning if they differ.
+
+### Scheduling (cron example)
+
+```cron
+# Run every Sunday at 2 AM
+0 2 * * 0 cd /path/to/lastfm-global-trends && uv run python fetch_countries.py >> data/logs/cron.log 2>&1
+```
