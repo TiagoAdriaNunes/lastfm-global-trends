@@ -5,7 +5,7 @@ import pylast
 from cachetools import TTLCache, cached
 from shiny import module, reactive, render, ui
 
-from countries import COUNTRY_CODES
+from countries import COUNTRY_CODES, LASTFM_COUNTRY_NAME_MAP
 from modules.utils import (
     ARTISTS_COL_DEFS,
     FETCH_LIMIT,
@@ -24,7 +24,17 @@ _geo_artists_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 _geo_tracks_cache: TTLCache = TTLCache(maxsize=50, ttl=6 * 3600)
 
 # {value: label} — value sent to Last.fm API is the name, label shows code + name
-COUNTRY_CHOICES = {name: f"({code}) {name}" for name, code in COUNTRY_CODES.items()}
+# Countries mapped to None in LASTFM_COUNTRY_NAME_MAP are excluded (not supported).
+COUNTRY_CHOICES = {
+    name: f"({code}) {name}"
+    for name, code in COUNTRY_CODES.items()
+    if LASTFM_COUNTRY_NAME_MAP.get(name, name) is not None
+}
+
+
+def _lastfm_country_name(display_name: str) -> str:
+    """Translate a display country name to the name accepted by the Last.fm API."""
+    return LASTFM_COUNTRY_NAME_MAP.get(display_name, display_name)
 
 
 @cached(_geo_artists_cache)
@@ -41,7 +51,7 @@ def _fetch_geo_top_artists(network: pylast.LastFMNetwork, country: str) -> pd.Da
     return fetch_paginated(
         network,
         "geo.getTopArtists",
-        {"country": country},
+        {"country": _lastfm_country_name(country)},
         "artist",
         lambda el, rank: {
             "Rank": rank,
@@ -75,7 +85,7 @@ def _fetch_geo_top_tracks(network: pylast.LastFMNetwork, country: str) -> pd.Dat
     return fetch_paginated(
         network,
         "geo.getTopTracks",
-        {"country": country},
+        {"country": _lastfm_country_name(country)},
         "track",
         _row,
         ["Rank", "Track", "Artist", "Listeners"],
