@@ -31,6 +31,7 @@ _HERE = Path(__file__).parent
 DB_PATH = _HERE / "data" / "trends.db"
 LOG_DIR = _HERE / "data" / "logs"
 FETCH_LIMIT = 1000  # results per page (API max)
+TAGS_MAX_PAGES = 10  # hard cap for chart.getTopTags (10 × 1 000 = 10 000 tags)
 REQUEST_DELAY = 1  # seconds between API calls
 MAX_RETRIES = 3  # retries for transient errors (500s, network issues)
 RETRY_BACKOFF = 5  # seconds to wait between retries
@@ -41,12 +42,14 @@ log = logging.getLogger(__name__)
 ALL_COUNTRIES = list(COUNTRY_CODES.keys())
 
 
-def setup_db(con: duckdb.DuckDBPyConnection) -> None:
+def setup_db(con: duckdb.DuckDBPyConnection) -> set[str]:
     con.execute("""
         CREATE TABLE IF NOT EXISTS geo_top_artists (
             country     VARCHAR,
             rank        INTEGER,
             artist      VARCHAR,
+            artist_mbid VARCHAR,
+            artist_url  VARCHAR,
             listeners   INTEGER,
             fetched_at  TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (country, rank)
@@ -57,8 +60,12 @@ def setup_db(con: duckdb.DuckDBPyConnection) -> None:
             country     VARCHAR,
             rank        INTEGER,
             track       VARCHAR,
+            track_url   VARCHAR,
             artist      VARCHAR,
+            artist_mbid VARCHAR,
+            artist_url  VARCHAR,
             listeners   INTEGER,
+            playcount   INTEGER,
             fetched_at  TIMESTAMP DEFAULT current_timestamp,
             PRIMARY KEY (country, rank)
         )
@@ -67,6 +74,8 @@ def setup_db(con: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE IF NOT EXISTS global_top_artists (
             rank        INTEGER PRIMARY KEY,
             artist      VARCHAR,
+            artist_mbid VARCHAR,
+            artist_url  VARCHAR,
             listeners   BIGINT,
             playcount   BIGINT,
             fetched_at  TIMESTAMP DEFAULT current_timestamp
@@ -76,19 +85,60 @@ def setup_db(con: duckdb.DuckDBPyConnection) -> None:
         CREATE TABLE IF NOT EXISTS global_top_tracks (
             rank        INTEGER PRIMARY KEY,
             track       VARCHAR,
+            track_mbid  VARCHAR,
+            track_url   VARCHAR,
             artist      VARCHAR,
+            artist_mbid VARCHAR,
+            artist_url  VARCHAR,
+            listeners   BIGINT,
             playcount   BIGINT,
             fetched_at  TIMESTAMP DEFAULT current_timestamp
         )
     """)
-    # migrate existing tables if columns were created with wrong types
-    for tbl, col in [
-        ("global_top_artists", "listeners"),
-        ("global_top_artists", "playcount"),
-        ("global_top_tracks", "playcount"),
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS global_top_tags (
+            rank       INTEGER PRIMARY KEY,
+            tag        VARCHAR,
+            tag_url    VARCHAR,
+            reach      INTEGER,
+            taggings   INTEGER,
+            fetched_at TIMESTAMP DEFAULT current_timestamp
+        )
+    """)
+    # migrate existing tables — add missing columns, fix types
+    # track which tables gain new columns so main() can force a full re-fetch
+    schema_changed: set[str] = set()
+    for tbl, col, typ in [
+        ("geo_top_artists",   "artist_mbid", "VARCHAR"),
+        ("geo_top_artists",   "artist_url",  "VARCHAR"),
+        ("geo_top_tracks",    "track_url",   "VARCHAR"),
+        ("geo_top_tracks",    "artist_mbid", "VARCHAR"),
+        ("geo_top_tracks",    "artist_url",  "VARCHAR"),
+        ("geo_top_tracks",    "playcount",   "INTEGER"),
+        ("global_top_artists","artist_mbid", "VARCHAR"),
+        ("global_top_artists","artist_url",  "VARCHAR"),
+        ("global_top_artists","listeners",   "BIGINT"),
+        ("global_top_artists","playcount",   "BIGINT"),
+        ("global_top_tracks", "track_mbid",  "VARCHAR"),
+        ("global_top_tracks", "track_url",   "VARCHAR"),
+        ("global_top_tracks", "artist_mbid", "VARCHAR"),
+        ("global_top_tracks", "artist_url",  "VARCHAR"),
+        ("global_top_tracks", "listeners",   "BIGINT"),
+        ("global_top_tracks", "playcount",   "BIGINT"),
     ]:
+        try:
+            con.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {typ}")
+            schema_changed.add(tbl)  # column didn't exist — schema changed
+        except duckdb.CatalogException:
+            pass  # column already present
         with contextlib.suppress(duckdb.CatalogException):
-            con.execute(f"ALTER TABLE {tbl} ALTER COLUMN {col} TYPE BIGINT")
+            con.execute(f"ALTER TABLE {tbl} ALTER COLUMN {col} TYPE {typ}")
+    if schema_changed:
+        log.warning(
+            "Schema changed for table(s): %s — forcing full refresh for affected tables.",
+            ", ".join(sorted(schema_changed)),
+        )
+    return schema_changed
 
 
 def _last_fetched(
@@ -187,6 +237,8 @@ def _parse_page1_artists(doc: object, country: str) -> list[dict]:
             "country": country,
             "rank": i,
             "artist": text(el, "name"),
+            "artist_mbid": text(el, "mbid"),
+            "artist_url": text(el, "url"),
             "listeners": int(text(el, "listeners") or 0),
         }
         for i, el in enumerate(doc.getElementsByTagName("artist"), start=1)
@@ -202,8 +254,12 @@ def _parse_page1_tracks(doc: object, country: str) -> list[dict]:
                 "country": country,
                 "rank": i,
                 "track": text(el, "name"),
+                "track_url": text(el, "url"),
                 "artist": text(artist_nodes[0], "name") if artist_nodes else "",
+                "artist_mbid": text(artist_nodes[0], "mbid") if artist_nodes else "",
+                "artist_url": text(artist_nodes[0], "url") if artist_nodes else "",
                 "listeners": int(text(el, "listeners") or 0),
+                "playcount": int(text(el, "playcount") or 0),
             }
         )
     return rows
@@ -260,6 +316,8 @@ def fetch_geo_artists(
                     "country": country,
                     "rank": offset + i,
                     "artist": text(el, "name"),
+                    "artist_mbid": text(el, "mbid"),
+                    "artist_url": text(el, "url"),
                     "listeners": int(text(el, "listeners") or 0),
                 }
             )
@@ -315,8 +373,12 @@ def fetch_geo_tracks(
                     "country": country,
                     "rank": offset + i,
                     "track": text(el, "name"),
+                    "track_url": text(el, "url"),
                     "artist": text(artist_nodes[0], "name") if artist_nodes else "",
+                    "artist_mbid": text(artist_nodes[0], "mbid") if artist_nodes else "",
+                    "artist_url": text(artist_nodes[0], "url") if artist_nodes else "",
                     "listeners": int(text(el, "listeners") or 0),
+                    "playcount": int(text(el, "playcount") or 0),
                 }
             )
     log.info("  → %d rows (%d pages)", len(rows), total_pages)
@@ -354,8 +416,8 @@ def upsert_artists(
     con.register("_staging_artists", df)
     con.execute("DELETE FROM geo_top_artists WHERE country = ?", [country])
     con.execute("""
-        INSERT INTO geo_top_artists (country, rank, artist, listeners)
-        SELECT country, rank, artist, listeners FROM _staging_artists
+        INSERT INTO geo_top_artists (country, rank, artist, artist_mbid, artist_url, listeners)
+        SELECT country, rank, artist, artist_mbid, artist_url, listeners FROM _staging_artists
     """)
     con.unregister("_staging_artists")
     saved = _db_count(con, "geo_top_artists", country)
@@ -385,8 +447,8 @@ def upsert_tracks(
     con.register("_staging_tracks", df)
     con.execute("DELETE FROM geo_top_tracks WHERE country = ?", [country])
     con.execute("""
-        INSERT INTO geo_top_tracks (country, rank, track, artist, listeners)
-        SELECT country, rank, track, artist, listeners FROM _staging_tracks
+        INSERT INTO geo_top_tracks (country, rank, track, track_url, artist, artist_mbid, artist_url, listeners, playcount)
+        SELECT country, rank, track, track_url, artist, artist_mbid, artist_url, listeners, playcount FROM _staging_tracks
     """)
     con.unregister("_staging_tracks")
     saved = _db_count(con, "geo_top_tracks", country)
@@ -473,6 +535,8 @@ def fetch_global_artists(
                 {
                     "rank": offset + i,
                     "artist": text(el, "name"),
+                    "artist_mbid": text(el, "mbid"),
+                    "artist_url": text(el, "url"),
                     "listeners": int(text(el, "listeners") or 0),
                     "playcount": int(text(el, "playcount") or 0),
                 }
@@ -524,7 +588,12 @@ def fetch_global_tracks(
                 {
                     "rank": offset + i,
                     "track": text(el, "name"),
+                    "track_mbid": text(el, "mbid"),
+                    "track_url": text(el, "url"),
                     "artist": text(artist_nodes[0], "name") if artist_nodes else "",
+                    "artist_mbid": text(artist_nodes[0], "mbid") if artist_nodes else "",
+                    "artist_url": text(artist_nodes[0], "url") if artist_nodes else "",
+                    "listeners": int(text(el, "listeners") or 0),
                     "playcount": int(text(el, "playcount") or 0),
                 }
             )
@@ -542,13 +611,90 @@ def upsert_global_artists(
     con.register("_staging_global_artists", df)
     con.execute("DELETE FROM global_top_artists")
     con.execute("""
-        INSERT INTO global_top_artists (rank, artist, listeners, playcount)
-        SELECT rank, artist, listeners, playcount FROM _staging_global_artists
+        INSERT INTO global_top_artists (rank, artist, artist_mbid, artist_url, listeners, playcount)
+        SELECT rank, artist, artist_mbid, artist_url, listeners, playcount FROM _staging_global_artists
     """)
     con.unregister("_staging_global_artists")
     saved = _db_count(con, "global_top_artists", None)
     if saved != len(rows):
         msg = f"global artists: fetched {len(rows)} but db has {saved}"
+        log.warning("  save mismatch: %s", msg)
+        run_errors.append(f"save mismatch — {msg}")
+    return False
+
+
+def fetch_global_tags(
+    network: pylast.LastFMNetwork,
+    con: duckdb.DuckDBPyConnection,
+    run_errors: list[str],
+    max_age_hours: float,
+) -> list[dict]:
+    """Fetch global top tags (hard-capped at TAGS_MAX_PAGES × FETCH_LIMIT rows).
+
+    Returns rows, or [] if data is fresh and count matches.
+    """
+    stale = _is_stale(con, "global_top_tags", None, max_age_hours)
+    log.info("Fetching chart.getTopTags — global%s", " (stale)" if stale else "")
+
+    doc = _global_request(network, "chart.getTopTags", run_errors, page=1)
+    if doc is None:
+        return []
+
+    total_pages = min(_total_pages(doc, "tags"), TAGS_MAX_PAGES)
+    db_count = _db_count(con, "global_top_tags", None)
+    count_ok = (total_pages - 1) * FETCH_LIMIT < db_count <= total_pages * FETCH_LIMIT
+
+    if not stale and count_ok:
+        log.info("  global tags up to date (%d rows), skipping", db_count)
+        return []
+
+    if not stale and not count_ok:
+        log.info(
+            "  count mismatch (db=%d expected %d–%d) — re-fetching despite fresh data",
+            db_count,
+            (total_pages - 1) * FETCH_LIMIT + 1,
+            total_pages * FETCH_LIMIT,
+        )
+
+    rows = []
+    for page in range(1, total_pages + 1):
+        if page > 1:
+            time.sleep(REQUEST_DELAY)
+            doc = _global_request(network, "chart.getTopTags", run_errors, page=page)
+            if doc is None:
+                break
+        offset = (page - 1) * FETCH_LIMIT
+        for i, el in enumerate(doc.getElementsByTagName("tag"), start=1):
+            rows.append(
+                {
+                    "rank": offset + i,
+                    "tag": text(el, "name"),
+                    "tag_url": text(el, "url"),
+                    "reach": int(text(el, "reach") or 0),
+                    "taggings": int(text(el, "taggings") or 0),
+                }
+            )
+    log.info("  → %d rows (%d pages, capped at %d)", len(rows), total_pages, TAGS_MAX_PAGES)
+    return rows
+
+
+def upsert_global_tags(
+    con: duckdb.DuckDBPyConnection, rows: list[dict], run_errors: list[str]
+) -> bool:
+    """Replace all global tag rows. Returns True if skipped (empty)."""
+    if not rows:
+        return True
+    df = pd.DataFrame(rows)
+    con.register("_staging_global_tags", df)
+    con.execute("DELETE FROM global_top_tags")
+    con.execute("""
+        INSERT INTO global_top_tags (rank, tag, tag_url, reach, taggings)
+        SELECT rank, tag, tag_url, reach, taggings FROM _staging_global_tags
+    """)
+    con.unregister("_staging_global_tags")
+    saved = _db_count(con, "global_top_tags", None)
+    if saved != len(rows):
+        msg = f"global tags: fetched {len(rows)} but db has {saved}"
         log.warning("  save mismatch: %s", msg)
         run_errors.append(f"save mismatch — {msg}")
     return False
@@ -564,8 +710,8 @@ def upsert_global_tracks(
     con.register("_staging_global_tracks", df)
     con.execute("DELETE FROM global_top_tracks")
     con.execute("""
-        INSERT INTO global_top_tracks (rank, track, artist, playcount)
-        SELECT rank, track, artist, playcount FROM _staging_global_tracks
+        INSERT INTO global_top_tracks (rank, track, track_mbid, track_url, artist, artist_mbid, artist_url, listeners, playcount)
+        SELECT rank, track, track_mbid, track_url, artist, artist_mbid, artist_url, listeners, playcount FROM _staging_global_tracks
     """)
     con.unregister("_staging_global_tracks")
     saved = _db_count(con, "global_top_tracks", None)
@@ -634,18 +780,27 @@ def main() -> None:
         sys.exit(1)
 
     with con_ctx as con:
-        setup_db(con)
+        schema_changed = setup_db(con)
+
+        def _age(tbl: str) -> float:
+            """Return 0 (force refresh) if the table schema changed, else max_age_hours."""
+            return 0.0 if tbl in schema_changed else max_age_hours
 
         if not only_countries:
             log.info("--- Global charts (max-age %.0fh) ---", max_age_hours)
             t0 = time.monotonic()
-            if not upsert_global_artists(con, fetch_global_artists(network, con, run_errors, max_age_hours), run_errors):
+            if not upsert_global_artists(con, fetch_global_artists(network, con, run_errors, _age("global_top_artists")), run_errors):
                 log.info("  saved global artists in %.2fs", time.monotonic() - t0)
             time.sleep(REQUEST_DELAY)
 
             t0 = time.monotonic()
-            if not upsert_global_tracks(con, fetch_global_tracks(network, con, run_errors, max_age_hours), run_errors):
+            if not upsert_global_tracks(con, fetch_global_tracks(network, con, run_errors, _age("global_top_tracks")), run_errors):
                 log.info("  saved global tracks in %.2fs", time.monotonic() - t0)
+            time.sleep(REQUEST_DELAY)
+
+            t0 = time.monotonic()
+            if not upsert_global_tags(con, fetch_global_tags(network, con, run_errors, _age("global_top_tags")), run_errors):
+                log.info("  saved global tags in %.2fs", time.monotonic() - t0)
             time.sleep(REQUEST_DELAY)
 
         run_countries = only_countries if only_countries else ALL_COUNTRIES
@@ -664,7 +819,7 @@ def main() -> None:
             log.info("[%d/%d] %s", i, total, country)
             stat = {"country": country, "artists": 0, "tracks": 0, "status": "ok"}
 
-            artists, force = fetch_geo_artists(network, api_country, con, run_errors, max_age_hours)
+            artists, force = fetch_geo_artists(network, api_country, con, run_errors, _age("geo_top_artists"))
             t0 = time.monotonic()
             skipped = upsert_artists(con, artists, force, run_errors)
             if not skipped:
@@ -678,7 +833,7 @@ def main() -> None:
                 )
             time.sleep(REQUEST_DELAY)
 
-            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, max_age_hours)
+            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, _age("geo_top_tracks"))
             t0 = time.monotonic()
             skipped = upsert_tracks(con, tracks, force, run_errors)
             if not skipped:
@@ -696,10 +851,14 @@ def main() -> None:
         global_track_count = con.execute(
             "SELECT COUNT(*) FROM global_top_tracks"
         ).fetchone()[0]
+        global_tag_count = con.execute(
+            "SELECT COUNT(*) FROM global_top_tags"
+        ).fetchone()[0]
         log.info(
-            "Done. global: %d artists, %d tracks | geo: %d artists, %d tracks | saved to %s",
+            "Done. global: %d artists, %d tracks, %d tags | geo: %d artists, %d tracks | saved to %s",
             global_artist_count,
             global_track_count,
+            global_tag_count,
             artist_count,
             track_count,
             DB_PATH,
@@ -709,7 +868,7 @@ def main() -> None:
             "run_at": run_ts,
             "db": str(DB_PATH),
             "max_age_hours": max_age_hours,
-            "global": {"artists": global_artist_count, "tracks": global_track_count},
+            "global": {"artists": global_artist_count, "tracks": global_track_count, "tags": global_tag_count},
             "geo": {"artists": artist_count, "tracks": track_count},
             "countries": country_stats,
             "errors": run_errors,
