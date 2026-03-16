@@ -80,6 +80,17 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
      --title lastfm-global-trends
    ```
 
+   > **Redeploying an existing app:** The free tier allows only 5 apps. If you hit the limit, target the existing app by ID to update it in place instead of creating a new one:
+   >
+   > ```bash
+   > rsconnect deploy shiny . \
+   >   --name YOUR_ACCOUNT_NAME \
+   >   --title lastfm-global-trends \
+   >   --app-id 16891361
+   > ```
+   >
+   > To find the app ID: `rsconnect apps list --name YOUR_ACCOUNT_NAME`
+
 ## Data Fetching
 
 The app reads from a local DuckDB database (`data/trends.db`). The `fetch_countries.py` script populates it by pulling top artists and tracks from the Last.fm API for every supported country plus global charts.
