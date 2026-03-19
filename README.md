@@ -1,40 +1,46 @@
 # Shiny for Python Last.fm App
 
-A **Shiny for Python** dashboard that connects to the [Last.fm API](https://www.last.fm/api) via [pylast](https://pypi.org/project/pylast/) to explore global music trends.
+A **Shiny for Python** dashboard that visualises global Last.fm music trends — top artists, tracks, tags, and country breakdowns.
 
 **Live app:** https://tiagoadrianunes.shinyapps.io/lastfm-global-trends/
+
+**Dataset:** https://www.kaggle.com/datasets/tiagoadrianunes/last-fm-global-trends
+
+## How it works
+
+The app reads from a pre-built **DuckDB** database (`data/trends.db`) hosted on Kaggle. On first run it downloads the database automatically — no live Last.fm API calls at runtime.
+
+The `fetch_countries.py` script is used separately to rebuild the database from the Last.fm API and upload a new version to Kaggle when a refresh is needed.
 
 ## Requirements
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
-- A [Last.fm API account](https://www.last.fm/api/account/create)
+- A [Kaggle account](https://www.kaggle.com) with API credentials
 
 ## Setup
 
 1. Clone the repository and install dependencies:
 
    ```bash
-   git clone https://github.com/your-username/lastfm-global-trends.git
+   git clone https://github.com/TiagoAdriaNunes/lastfm-global-trends.git
    cd lastfm-global-trends
    uv sync
    ```
 
-2. Get a Last.fm API key:
+2. Get your Kaggle API credentials:
 
-   - Log in or sign up at [last.fm](https://www.last.fm)
-   - Go to [last.fm/api/account/create](https://www.last.fm/api/account/create)
-   - Fill in the application name and description, then submit
-   - Copy the **API key** and **Shared secret** from the confirmation page
+   - Go to https://www.kaggle.com/settings → API → **Create New Token**
+   - This downloads a `kaggle.json` with your `username` and `key`
 
-3. Create a `.env` file with your Last.fm credentials:
+3. Create a `.env` file with your Kaggle credentials:
 
    ```env
-   LASTFM_API_KEY=your_api_key
-   LASTFM_API_SECRET=your_api_secret
+   KAGGLE_USERNAME=your_username
+   KAGGLE_KEY=your_api_key
    ```
 
-4. Run the app:
+4. Run the app (`data/trends.db` is downloaded automatically on first run):
 
    ```bash
    uv run shiny run --reload app.py
@@ -91,9 +97,22 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
    >
    > To find the app ID: `rsconnect apps list --name YOUR_ACCOUNT_NAME`
 
-## Data Fetching
+5. Set environment variables in the shinyapps.io dashboard:
 
-The app reads from a local DuckDB database (`data/trends.db`). The `fetch_countries.py` script populates it by pulling top artists and tracks from the Last.fm API for every supported country plus global charts.
+   Dashboard → your app → Settings → Environment Variables → add `KAGGLE_USERNAME` and `KAGGLE_KEY`.
+
+## Rebuilding the database
+
+`fetch_countries.py` pulls top artists, tracks, and tags from the Last.fm API for every supported country plus global charts, and writes the results into `data/trends.db`. You only need this to refresh the data and publish a new Kaggle dataset version.
+
+### Requirements
+
+- A [Last.fm API key](https://www.last.fm/api/account/create)
+- Add to your `.env`:
+  ```env
+  LASTFM_API_KEY=your_api_key
+  LASTFM_API_SECRET=your_api_secret
+  ```
 
 ### Basic usage
 
@@ -115,36 +134,23 @@ Controls how old data must be before it is re-fetched. Defaults to `168` (7 days
 # Re-fetch anything older than 24 hours
 uv run python fetch_countries.py --max-age 24
 
-# Weekly scheduled run (explicit)
-uv run python fetch_countries.py --max-age 168
-```
-
-> **Note:** Even within the max-age window, a country is always re-fetched if the number of pages returned by the API no longer matches what is stored in the DB (e.g. new artists entered the chart).
-
-#### `--max-age 0` — Force full refresh
-
-Set `--max-age 0` to force a complete re-fetch of everything regardless of when it was last imported:
-
-```bash
+# Force full refresh of everything
 uv run python fetch_countries.py --max-age 0
 ```
 
-#### `--only` — Fetch specific countries
+> **Note:** Even within the max-age window, a country is always re-fetched if the number of pages returned by the API no longer matches what is stored in the DB.
 
-Pass a comma-separated list of country display names to limit the run. Global charts are skipped when `--only` is used.
+#### `--only` — Fetch specific countries
 
 ```bash
 # Single country
 uv run python fetch_countries.py --only "France"
 
-# Multiple countries
+# Multiple countries (global charts are skipped)
 uv run python fetch_countries.py --only "France,Germany,Japan"
-
-# Force refresh for specific countries only
-uv run python fetch_countries.py --only "France,Germany" --max-age 0
 ```
 
-Country names must match the display names in the app (e.g. `"Côte d'Ivoire"`, `"Türkiye"`, `"Czechia"`). A full list can be found in `countries.py`.
+Country names must match the display names in the app (e.g. `"Côte d'Ivoire"`, `"Türkiye"`). A full list is in `countries.py`.
 
 ### How the skip logic works
 
@@ -156,8 +162,6 @@ On each run, for every country the script:
    - **Fresh + count matches** → skip entirely, no write
    - **Fresh + count mismatch** → re-fetch all pages and replace DB rows
    - **Stale** → re-fetch all pages and replace DB rows unconditionally
-
-When rows are written, the script verifies the saved count matches the fetched count and logs a warning if they differ.
 
 ### Scheduling (cron example)
 
