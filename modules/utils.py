@@ -25,8 +25,20 @@ def fmt(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return df
 
 
+def linkify(df: pd.DataFrame, col: str, url_col: str) -> pd.DataFrame:
+    """Wrap col values with <a> tags using url_col, then drop url_col."""
+    df = df.copy()
+    urls = df[url_col].astype(str)
+    safe = urls.str.startswith("https://") | urls.str.startswith("http://")
+    mask = df[url_col].notna() & (urls != "") & safe
+    df.loc[mask, col] = (
+        '<a href="' + df.loc[mask, url_col] + '" target="_blank">' + df.loc[mask, col] + "</a>"
+    )
+    return df.drop(columns=[url_col])
+
+
 def dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
     """Render a DataFrame as an interactive itables DataTable widget."""
     return ui.HTML(
-        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [], maxBytes=0)
+        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [], maxBytes=0, allow_html=True)
     )

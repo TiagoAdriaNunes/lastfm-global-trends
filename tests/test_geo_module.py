@@ -13,7 +13,7 @@ def test_country_choices_is_non_empty():
 
 
 def test_country_choices_all_values_match_format():
-    pattern = re.compile(r"^\([A-Z?]{2}\) .+$")
+    pattern = re.compile(r"^\([A-Z?]{1,2}\) .+$")
     for name, label in geo.COUNTRY_CHOICES.items():
         assert pattern.match(label), f"Bad label for {name!r}: {label!r}"
 

@@ -11,7 +11,7 @@ from modules.db import (
     get_global_top_tags,
     get_global_top_tracks,
 )
-from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt
+from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt, linkify
 
 log = logging.getLogger(__name__)
 
@@ -225,11 +225,16 @@ def home_server(input, output, session):
 
     @render.ui
     def top_artists_table():
-        return dt(fmt(top_artists_raw(), ["Listeners", "Scrobbles"]), ARTISTS_COL_DEFS)
+        df = fmt(top_artists_raw(), ["Listeners", "Scrobbles"])
+        df = linkify(df, "Artist", "ArtistUrl")
+        return dt(df, ARTISTS_COL_DEFS)
 
     @render.ui
     def top_tracks_table():
-        return dt(fmt(top_tracks_raw(), ["Listeners", "Scrobbles"]), TRACKS_COL_DEFS)
+        df = fmt(top_tracks_raw(), ["Listeners", "Scrobbles"])
+        df = linkify(df, "Track", "TrackUrl")
+        df = linkify(df, "Artist", "ArtistUrl")
+        return dt(df, TRACKS_COL_DEFS)
 
     @render.text
     def top_track_artists_page_info():

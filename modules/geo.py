@@ -5,7 +5,7 @@ from shiny import module, reactive, render, ui
 
 from countries import COUNTRY_CODES, LASTFM_COUNTRY_NAME_MAP
 from modules.db import get_available_countries, get_geo_top_artists, get_geo_top_tracks
-from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt
+from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt, linkify
 
 log = logging.getLogger(__name__)
 
@@ -56,19 +56,22 @@ def geo_server(input, output, session):
     @reactive.calc
     def geo_artists():
         if not input.country():
-            return pd.DataFrame(columns=["Rank", "Artist", "Listeners"])
+            return pd.DataFrame(columns=["Rank", "Artist", "ArtistUrl", "Listeners"])
         return fmt(get_geo_top_artists(input.country()), ["Listeners"])
 
     @reactive.calc
     def geo_tracks():
         if not input.country():
-            return pd.DataFrame(columns=["Rank", "Track", "Artist", "Listeners"])
+            return pd.DataFrame(columns=["Rank", "Track", "TrackUrl", "Artist", "ArtistUrl", "Listeners"])
         return fmt(get_geo_top_tracks(input.country()), ["Listeners"])
 
     @render.ui
     def geo_artists_table():
-        return dt(geo_artists(), ARTISTS_COL_DEFS)
+        df = linkify(geo_artists(), "Artist", "ArtistUrl")
+        return dt(df, ARTISTS_COL_DEFS)
 
     @render.ui
     def geo_tracks_table():
-        return dt(geo_tracks(), TRACKS_COL_DEFS)
+        df = linkify(geo_tracks(), "Track", "TrackUrl")
+        df = linkify(df, "Artist", "ArtistUrl")
+        return dt(df, TRACKS_COL_DEFS)
