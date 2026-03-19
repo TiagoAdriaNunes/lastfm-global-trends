@@ -92,7 +92,7 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
    > rsconnect deploy shiny . \
    >   --name YOUR_ACCOUNT_NAME \
    >   --title lastfm-global-trends \
-   >   --app-id 16891361
+   >   --app-id YOUR_APP_ID
    > ```
    >
    > To find the app ID: `rsconnect apps list --name YOUR_ACCOUNT_NAME`
