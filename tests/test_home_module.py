@@ -1,6 +1,5 @@
 import pandas as pd
 
-from modules import home
 from modules.home import _artist_count_bars, _artist_track_counts, _top_artists_plot
 
 
