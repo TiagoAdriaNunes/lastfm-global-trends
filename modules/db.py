@@ -136,13 +136,13 @@ def get_global_top_tags() -> pd.DataFrame:
     try:
         with _connect() as con:
             return con.execute(
-                "SELECT rank AS \"Rank\", tag AS \"Tag\", "
+                "SELECT rank AS \"Rank\", tag AS \"Tag\", tag_url AS \"TagUrl\", "
                 "reach AS \"Reach\", taggings AS \"Taggings\" "
                 "FROM global_top_tags ORDER BY rank"
             ).df()
     except Exception:
         log.warning("global_top_tags table unavailable", exc_info=True)
-        return pd.DataFrame(columns=["Rank", "Tag", "Reach", "Taggings"])
+        return pd.DataFrame(columns=["Rank", "Tag", "TagUrl", "Reach", "Taggings"])
 
 
 @cache
