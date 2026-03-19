@@ -1,3 +1,46 @@
+/* ── Typography ───────────────────────────────────────────────── */
+body,
+.shiny-text-output {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ── Navbar ───────────────────────────────────────────────────── */
+.navbar {
+    background-color: #1a1a1a !important;
+}
+
+.navbar .navbar-brand,
+.navbar .nav-link,
+.navbar .nav-link.active {
+    color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.navbar .nav-link:hover,
+.navbar .nav-link:focus {
+    color: #ffffff !important;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* ── Cards ────────────────────────────────────────────────────── */
+.card {
+    overflow: hidden;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+
+.card-header {
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+/* ── DataTables ───────────────────────────────────────────────── */
 .dt-container .dt-search input,
 .dt-container .dt-length select {
     background-color: #fff !important;
@@ -22,6 +65,7 @@
     white-space: nowrap;
 }
 
+/* ── Artist-count mini chart ──────────────────────────────────── */
 .artist-count-chart {
     display: grid;
     gap: 0.4rem;
@@ -36,8 +80,8 @@
 }
 
 .artist-count-controls .shiny-text-output {
-    color: #495057;
-    font-size: 0.9rem;
+    color: #6c757d;
+    font-size: 0.85rem;
     white-space: nowrap;
 }
 
@@ -49,14 +93,14 @@
 }
 
 .artist-count-label {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .artist-count-bar-wrap {
-    height: 0.8rem;
+    height: 0.75rem;
     border-radius: 999px;
     background: #eef2f7;
     overflow: hidden;
@@ -65,19 +109,22 @@
 .artist-count-bar {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #1b6ef3, #4ea8ff);
+    background: linear-gradient(90deg, #005399, #4a90d9);
 }
 
 .artist-count-value {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: #6c757d;
 }
 
-/* Keep Plotly toolbar controls from overlapping app nav/tab controls */
+/* ── Plotly – hide toolbar ────────────────────────────────────── */
 .js-plotly-plot .plotly .modebar {
     display: none !important;
 }
 
-.card {
-    overflow: hidden;
+/* ── Loading / progress bar ───────────────────────────────────── */
+.progress {
+    background-color: #e9ecef;
 }

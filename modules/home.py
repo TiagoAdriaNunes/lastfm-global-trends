@@ -31,21 +31,38 @@ def _top_artists_plot(
     top = artists_df.nlargest(top_n, metric_col).copy()
     top = top.sort_values(metric_col, ascending=True)
 
+    colorscale = (
+        [[0, "#c8ddf5"], [1, "#1565c0"]]
+        if metric_col == "Listeners"
+        else [[0, "#f0dfc0"], [1, "#8a5010"]]
+    )
     fig = px.bar(
         top,
         x=metric_col,
         y="Artist",
         orientation="h",
-        color_discrete_sequence=["#1b6ef3" if metric_col == "Listeners" else "#16a34a"],
+        color=metric_col,
+        color_continuous_scale=colorscale,
+        template="plotly_white",
     )
+    fig.update_traces(
+        texttemplate="%{x:,.0f}",
+        textposition="outside",
+        textfont_size=11,
+        cliponaxis=False,
+    )
+    fig.update_coloraxes(showscale=False)
     fig.update_layout(
-        height=520,
-        margin={"l": 8, "r": 8, "t": 8, "b": 16},
-        showlegend=False,
-        xaxis_title=metric_col,
+        height=540,
+        margin={"l": 8, "r": 80, "t": 8, "b": 16},
+        xaxis_title="",
         yaxis_title="",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font_family="Inter, system-ui, sans-serif",
     )
-    fig.update_xaxes(tickformat=",d")
+    fig.update_xaxes(tickformat=",d", gridcolor="#eef2f7", showticklabels=False)
+    fig.update_yaxes(gridcolor="rgba(0,0,0,0)", tickfont_size=12)
     return fig
 
 
@@ -138,14 +155,14 @@ def home_ui():
                     {"class": "artist-count-controls"},
                     ui.input_action_button(
                         "track_artists_prev",
-                        "Previous",
-                        class_="btn btn-outline-secondary",
+                        "← Previous",
+                        class_="btn btn-outline-primary btn-sm",
                     ),
                     ui.output_text("top_track_artists_page_info"),
                     ui.input_action_button(
                         "track_artists_next",
-                        "Next",
-                        class_="btn btn-outline-secondary",
+                        "Next →",
+                        class_="btn btn-outline-primary btn-sm",
                     ),
                 ),
             ),
@@ -252,4 +269,6 @@ def home_server(input, output, session):
 
     @render.ui
     def top_tags_table():
-        return dt(fmt(get_global_top_tags(), ["Reach", "Taggings"]))
+        df = fmt(get_global_top_tags(), ["Reach", "Taggings"])
+        df = linkify(df, "Tag", "TagUrl")
+        return dt(df)

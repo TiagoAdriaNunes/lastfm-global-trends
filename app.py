@@ -5,9 +5,17 @@ import queue
 from itables.shiny import init_itables
 from shiny import App, reactive, render, ui
 
-from modules.db import DB_PATH, ensure_db
+from modules.db import ensure_db
 from modules.geo import geo_server, geo_ui
 from modules.home import home_server, home_ui
+
+_theme = ui.Theme(preset="shiny").add_defaults(
+    primary="#005399",
+    **{
+        "link-color": "#005399",
+        "link-hover-color": "#003d73",
+    },
+)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -49,7 +57,14 @@ def _loading_ui(pct: float) -> ui.Tag:
 app_ui = ui.page_navbar(
     ui.nav_panel("Global", ui.output_ui("home_panel")),
     ui.nav_panel("By Country", ui.output_ui("geo_panel")),
+    theme=_theme,
+    navbar_options=ui.navbar_options(inverse=True),
     header=ui.tags.head(
+        ui.tags.link(rel="preconnect", href="https://fonts.googleapis.com"),
+        ui.tags.link(
+            rel="stylesheet",
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap",
+        ),
         ui.HTML(init_itables()),
         ui.include_css("www/styles.css"),
     ),
