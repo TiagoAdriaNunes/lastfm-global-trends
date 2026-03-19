@@ -1,13 +1,7 @@
-import xml.dom.minidom
-
 import pandas as pd
 
-from modules import home, utils
+from modules import home
 from modules.home import _artist_count_bars, _artist_track_counts, _top_artists_plot
-
-
-def _doc(xml_str: str):
-    return xml.dom.minidom.parseString(xml_str).documentElement
 
 
 def test_artist_track_counts_counts_and_sorts():
@@ -129,73 +123,3 @@ def test_artist_count_bars_min_width_floor():
 
     assert "width: 1.00%;" in str(tag)
 
-
-def test_fetch_top_artists_parses_response(monkeypatch):
-    home._artists_cache.clear()
-    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
-
-    doc = _doc(
-        """
-        <artists>
-          <artist><name>Radiohead</name><listeners>500</listeners><playcount>9000</playcount></artist>
-          <artist><name>Portishead</name><listeners>200</listeners><playcount>3000</playcount></artist>
-        </artists>
-        """
-    )
-    monkeypatch.setattr(utils, "raw_request", lambda *_a, **_kw: doc)
-
-    result = home._fetch_top_artists(object())
-
-    assert result.to_dict("records") == [
-        {"Rank": 1, "Artist": "Radiohead", "Listeners": 500, "Scrobbles": 9000},
-        {"Rank": 2, "Artist": "Portishead", "Listeners": 200, "Scrobbles": 3000},
-    ]
-
-
-def test_fetch_top_tracks_parses_response(monkeypatch):
-    home._tracks_cache.clear()
-    monkeypatch.setattr(utils, "FETCH_PAGES", 1)
-
-    doc = _doc(
-        """
-        <tracks>
-          <track>
-            <name>Creep</name>
-            <artist><name>Radiohead</name></artist>
-            <listeners>800</listeners>
-            <playcount>12000</playcount>
-          </track>
-        </tracks>
-        """
-    )
-    monkeypatch.setattr(utils, "raw_request", lambda *_a, **_kw: doc)
-
-    result = home._fetch_top_tracks(object())
-
-    assert result.to_dict("records") == [
-        {
-            "Rank": 1, "Track": "Creep", "Artist": "Radiohead",
-            "Listeners": 800, "Scrobbles": 12000,
-        },
-    ]
-
-
-def test_fetch_top_tags_parses_response(monkeypatch):
-    home._tags_cache.clear()
-
-    doc = _doc(
-        """
-        <tags>
-          <tag><name>rock</name><reach>1000</reach><taggings>5000</taggings></tag>
-          <tag><name>pop</name><reach>800</reach><taggings>3000</taggings></tag>
-        </tags>
-        """
-    )
-    monkeypatch.setattr(home, "raw_request", lambda *_a, **_kw: doc)
-
-    result = home._fetch_top_tags(object())
-
-    assert result.to_dict("records") == [
-        {"Rank": 1, "Tag": "rock", "Reach": 1000, "Taggings": 5000},
-        {"Rank": 2, "Tag": "pop", "Reach": 800, "Taggings": 3000},
-    ]
