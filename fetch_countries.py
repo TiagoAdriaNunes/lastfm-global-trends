@@ -35,7 +35,9 @@ TAGS_MAX_PAGES = 10  # hard cap for chart.getTopTags (10 × 1 000 = 10 000 tags)
 REQUEST_DELAY = 1  # seconds between API calls
 MAX_RETRIES = 3  # retries for transient errors (500s, network issues)
 RETRY_BACKOFF = 5  # seconds to wait between retries
-DEFAULT_MAX_AGE_HOURS = 168  # 7 days
+GLOBAL_MAX_AGE_HOURS = 72   # 3 days — global charts update more frequently
+GEO_MAX_AGE_HOURS = 168     # 7 days — country charts are slower to change
+DEFAULT_MAX_AGE_HOURS = GEO_MAX_AGE_HOURS  # keep for back-compat
 
 log = logging.getLogger(__name__)
 
@@ -733,9 +735,16 @@ def main() -> None:
         "--max-age",
         metavar="HOURS",
         type=float,
-        default=DEFAULT_MAX_AGE_HOURS,
-        help=f"Re-fetch data older than this many hours (default: {DEFAULT_MAX_AGE_HOURS} = 7 days). "
+        default=GEO_MAX_AGE_HOURS,
+        help=f"Re-fetch country data older than this many hours (default: {GEO_MAX_AGE_HOURS} = 7 days). "
              "Data with a count mismatch vs the API is always re-fetched regardless of age.",
+    )
+    parser.add_argument(
+        "--global-max-age",
+        metavar="HOURS",
+        type=float,
+        default=GLOBAL_MAX_AGE_HOURS,
+        help=f"Re-fetch global charts older than this many hours (default: {GLOBAL_MAX_AGE_HOURS} = 3 days).",
     )
     args = parser.parse_args()
 
@@ -763,7 +772,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, handlers=[console, file_handler])
 
     run_errors: list[str] = []
-    max_age_hours: float = args.max_age
+    geo_max_age: float = args.max_age
+    global_max_age: float = args.global_max_age
 
     network = pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
 
@@ -782,29 +792,29 @@ def main() -> None:
     with con_ctx as con:
         schema_changed = setup_db(con)
 
-        def _age(tbl: str) -> float:
-            """Return 0 (force refresh) if the table schema changed, else max_age_hours."""
-            return 0.0 if tbl in schema_changed else max_age_hours
+        def _age(tbl: str, base_hours: float) -> float:
+            """Return 0 (force refresh) if the table schema changed, else base_hours."""
+            return 0.0 if tbl in schema_changed else base_hours
 
         if not only_countries:
-            log.info("--- Global charts (max-age %.0fh) ---", max_age_hours)
+            log.info("--- Global charts (max-age %.0fh / %.0f days) ---", global_max_age, global_max_age / 24)
             t0 = time.monotonic()
-            if not upsert_global_artists(con, fetch_global_artists(network, con, run_errors, _age("global_top_artists")), run_errors):
+            if not upsert_global_artists(con, fetch_global_artists(network, con, run_errors, _age("global_top_artists", global_max_age)), run_errors):
                 log.info("  saved global artists in %.2fs", time.monotonic() - t0)
             time.sleep(REQUEST_DELAY)
 
             t0 = time.monotonic()
-            if not upsert_global_tracks(con, fetch_global_tracks(network, con, run_errors, _age("global_top_tracks")), run_errors):
+            if not upsert_global_tracks(con, fetch_global_tracks(network, con, run_errors, _age("global_top_tracks", global_max_age)), run_errors):
                 log.info("  saved global tracks in %.2fs", time.monotonic() - t0)
             time.sleep(REQUEST_DELAY)
 
             t0 = time.monotonic()
-            if not upsert_global_tags(con, fetch_global_tags(network, con, run_errors, _age("global_top_tags")), run_errors):
+            if not upsert_global_tags(con, fetch_global_tags(network, con, run_errors, _age("global_top_tags", global_max_age)), run_errors):
                 log.info("  saved global tags in %.2fs", time.monotonic() - t0)
             time.sleep(REQUEST_DELAY)
 
         run_countries = only_countries if only_countries else ALL_COUNTRIES
-        log.info("--- Country charts (%d, max-age %.0fh) ---", len(run_countries), max_age_hours)
+        log.info("--- Country charts (%d, max-age %.0fh / %.0f days) ---", len(run_countries), geo_max_age, geo_max_age / 24)
         total = len(run_countries)
         country_stats = []
         for i, country in enumerate(run_countries, start=1):
@@ -819,7 +829,7 @@ def main() -> None:
             log.info("[%d/%d] %s", i, total, country)
             stat = {"country": country, "artists": 0, "tracks": 0, "status": "ok"}
 
-            artists, force = fetch_geo_artists(network, api_country, con, run_errors, _age("geo_top_artists"))
+            artists, force = fetch_geo_artists(network, api_country, con, run_errors, _age("geo_top_artists", geo_max_age))
             t0 = time.monotonic()
             skipped = upsert_artists(con, artists, force, run_errors)
             if not skipped:
@@ -833,7 +843,7 @@ def main() -> None:
                 )
             time.sleep(REQUEST_DELAY)
 
-            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, _age("geo_top_tracks"))
+            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, _age("geo_top_tracks", geo_max_age))
             t0 = time.monotonic()
             skipped = upsert_tracks(con, tracks, force, run_errors)
             if not skipped:
@@ -867,7 +877,8 @@ def main() -> None:
         summary = {
             "run_at": run_ts,
             "db": str(DB_PATH),
-            "max_age_hours": max_age_hours,
+            "global_max_age_hours": global_max_age,
+            "geo_max_age_hours": geo_max_age,
             "global": {"artists": global_artist_count, "tracks": global_track_count, "tags": global_tag_count},
             "geo": {"artists": artist_count, "tracks": track_count},
             "countries": country_stats,
