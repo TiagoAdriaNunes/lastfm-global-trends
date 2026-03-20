@@ -34,9 +34,13 @@ def ensure_db(on_progress=None, force_check: bool = False) -> None:
         force_check: when True, always contact Kaggle to verify file size even
                      if the DB already exists locally.
     """
+    _MIN_SIZE = 1 * 1024 * 1024  # 1 MB — anything smaller is treated as corrupt
     if DB_PATH.exists() and not force_check:
-        log.info("trends.db already present (%.1f MB), skipping download.", DB_PATH.stat().st_size / 1024 / 1024)
-        return
+        size = DB_PATH.stat().st_size
+        if size >= _MIN_SIZE:
+            log.info("trends.db already present (%.1f MB), skipping download.", size / 1024 / 1024)
+            return
+        log.warning("trends.db exists but is too small (%.0f bytes) — re-downloading.", size)
 
     load_dotenv(DB_PATH.parent.parent / ".env")
     if os.environ.get("KAGGLE_API_TOKEN") and not os.environ.get("KAGGLE_TOKEN"):
