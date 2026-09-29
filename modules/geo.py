@@ -1,11 +1,13 @@
 import logging
 
 import pandas as pd
-from shiny import module, reactive, render, ui
+from itables.widget import ITable
+from shiny import module, reactive, ui
+from shinywidgets import output_widget, render_widget
 
 from countries import COUNTRY_CODES, LASTFM_COUNTRY_NAME_MAP
 from modules.db import get_available_countries, get_geo_top_artists, get_geo_top_tracks
-from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt, linkify
+from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt_options, fmt, linkify
 
 log = logging.getLogger(__name__)
 
@@ -25,26 +27,25 @@ def _build_country_choices() -> dict[str, str]:
     }
 
 
-COUNTRY_CHOICES = _build_country_choices()
-
-
 @module.ui
 def geo_ui():
+    # Built on render, not at import: the app only renders this panel once the DB
+    # is downloaded, so the choices come from the DB instead of the fallback list.
     return ui.div(
         ui.input_selectize(
             "country",
             "Country",
-            choices=COUNTRY_CHOICES,
+            choices=_build_country_choices(),
             selected="United States",
         ),
         ui.layout_columns(
             ui.card(
                 ui.card_header("Top Artists"),
-                ui.output_ui("geo_artists_table"),
+                output_widget("geo_artists_table"),
             ),
             ui.card(
                 ui.card_header("Top Tracks"),
-                ui.output_ui("geo_tracks_table"),
+                output_widget("geo_tracks_table"),
             ),
             col_widths=[6, 6],
         ),
@@ -65,13 +66,35 @@ def geo_server(input, output, session):
             return pd.DataFrame(columns=["Rank", "Track", "TrackUrl", "Artist", "ArtistUrl", "Listeners"])
         return fmt(get_geo_top_tracks(input.country()), ["Listeners"])
 
-    @render.ui
+    # The table widgets are created once and then updated in place when the
+    # country changes. Re-rendering them would rebuild the whole table and flicker.
+    @render_widget
     def geo_artists_table():
-        df = linkify(geo_artists(), "Artist", "ArtistUrl")
-        return dt(df, ARTISTS_COL_DEFS)
+        with reactive.isolate():
+            return ITable(_artists_df(), **dt_options(ARTISTS_COL_DEFS))
 
-    @render.ui
+    @render_widget
     def geo_tracks_table():
+        with reactive.isolate():
+            return ITable(_tracks_df(), **dt_options(TRACKS_COL_DEFS))
+
+    def _artists_df() -> pd.DataFrame:
+        return linkify(geo_artists(), "Artist", "ArtistUrl")
+
+    def _tracks_df() -> pd.DataFrame:
         df = linkify(geo_tracks(), "Track", "TrackUrl")
-        df = linkify(df, "Artist", "ArtistUrl")
-        return dt(df, TRACKS_COL_DEFS)
+        return linkify(df, "Artist", "ArtistUrl")
+
+    @reactive.effect
+    def _update_artists_table():
+        df = _artists_df()
+        widget = geo_artists_table.widget
+        if widget is not None:
+            widget.update(df, **dt_options(ARTISTS_COL_DEFS))
+
+    @reactive.effect
+    def _update_tracks_table():
+        df = _tracks_df()
+        widget = geo_tracks_table.widget
+        if widget is not None:
+            widget.update(df, **dt_options(TRACKS_COL_DEFS))

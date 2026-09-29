@@ -37,8 +37,17 @@ def linkify(df: pd.DataFrame, col: str, url_col: str) -> pd.DataFrame:
     return df.drop(columns=[url_col])
 
 
+def dt_options(column_defs: list | None = None) -> dict:
+    """itables options shared by static tables (dt) and updatable ITable widgets."""
+    return {
+        "pageLength": 10,
+        "style": "width:100%;margin:0",
+        "columnDefs": column_defs or [],
+        "maxBytes": 0,
+        "allow_html": True,
+    }
+
+
 def dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
     """Render a DataFrame as an interactive itables DataTable widget."""
-    return ui.HTML(
-        DT(df, pageLength=10, style="width:100%;margin:0", columnDefs=column_defs or [], maxBytes=0, allow_html=True)
-    )
+    return ui.HTML(DT(df, **dt_options(column_defs)))

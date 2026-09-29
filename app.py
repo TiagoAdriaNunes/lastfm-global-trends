@@ -60,6 +60,12 @@ app_ui = ui.page_navbar(
     theme=_theme,
     navbar_options=ui.navbar_options(inverse=True),
     header=ui.tags.head(
+        # Light mode only for now: itables follows the OS dark-mode setting unless
+        # <html data-theme> is set, and Bootstrap reads data-bs-theme.
+        ui.tags.script(
+            "document.documentElement.dataset.theme = 'light';"
+            "document.documentElement.dataset.bsTheme = 'light';"
+        ),
         ui.tags.link(rel="preconnect", href="https://fonts.googleapis.com"),
         ui.tags.link(
             rel="stylesheet",

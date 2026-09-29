@@ -1,32 +1,32 @@
 import re
 
-from modules import geo
 from modules.geo import _build_country_choices
 
 
 def test_country_choices_uses_code_plus_name_format():
-    assert geo.COUNTRY_CHOICES["United States"] == "(US) United States"
+    assert _build_country_choices()["United States"] == "(US) United States"
 
 
 def test_country_choices_is_non_empty():
-    assert len(geo.COUNTRY_CHOICES) > 0
+    assert len(_build_country_choices()) > 0
 
 
 def test_country_choices_all_values_match_format():
     pattern = re.compile(r"^\([A-Z?]{1,2}\) .+$")
-    for name, label in geo.COUNTRY_CHOICES.items():
+    for name, label in _build_country_choices().items():
         assert pattern.match(label), f"Bad label for {name!r}: {label!r}"
 
 
 def test_country_choices_keys_match_label_suffix():
-    for name, label in geo.COUNTRY_CHOICES.items():
+    for name, label in _build_country_choices().items():
         # label is "(XX) <name>"
         assert label.endswith(name), f"Label {label!r} does not end with key {name!r}"
 
 
 def test_country_choices_known_countries_present():
+    choices = _build_country_choices()
     for country in ("United Kingdom", "Brazil", "Germany", "Japan"):
-        assert country in geo.COUNTRY_CHOICES, f"{country!r} missing from COUNTRY_CHOICES"
+        assert country in choices, f"{country!r} missing from country choices"
 
 
 def test_build_country_choices_uses_db_countries_when_available(monkeypatch):

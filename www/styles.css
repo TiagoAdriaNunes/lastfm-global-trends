@@ -1,3 +1,9 @@
+/* ── Color scheme ─────────────────────────────────────────────── */
+/* Light only until a dark theme is designed (see data-theme script in app.py). */
+:root {
+    color-scheme: light;
+}
+
 /* ── Typography ───────────────────────────────────────────────── */
 body,
 .shiny-text-output {
