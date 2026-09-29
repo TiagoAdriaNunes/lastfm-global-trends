@@ -3,11 +3,18 @@ import logging
 import pandas as pd
 from itables.widget import ITable
 from shiny import module, reactive, ui
-from shinywidgets import output_widget, render_widget
+from shinywidgets import render_widget
 
 from countries import COUNTRY_CODES, LASTFM_COUNTRY_NAME_MAP
 from modules.db import get_available_countries, get_geo_top_artists, get_geo_top_tracks
-from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt_options, fmt, linkify
+from modules.utils import (
+    ARTISTS_COL_DEFS,
+    TRACKS_COL_DEFS,
+    dt_options,
+    fmt,
+    linkify,
+    table_output,
+)
 
 log = logging.getLogger(__name__)
 
@@ -41,11 +48,11 @@ def geo_ui():
         ui.layout_columns(
             ui.card(
                 ui.card_header("Top Artists"),
-                output_widget("geo_artists_table"),
+                table_output("geo_artists_table"),
             ),
             ui.card(
                 ui.card_header("Top Tracks"),
-                output_widget("geo_tracks_table"),
+                table_output("geo_tracks_table"),
             ),
             col_widths=[6, 6],
         ),

@@ -3,15 +3,23 @@ from math import ceil
 
 import pandas as pd
 import plotly.express as px
+from itables.widget import ITable
 from shiny import module, reactive, render, ui
-from shinywidgets import output_widget, render_plotly
+from shinywidgets import output_widget, render_plotly, render_widget
 
 from modules.db import (
     get_global_top_artists,
     get_global_top_tags,
     get_global_top_tracks,
 )
-from modules.utils import ARTISTS_COL_DEFS, TRACKS_COL_DEFS, dt, fmt, linkify
+from modules.utils import (
+    ARTISTS_COL_DEFS,
+    TRACKS_COL_DEFS,
+    dt_options,
+    fmt,
+    linkify,
+    table_output,
+)
 
 log = logging.getLogger(__name__)
 
@@ -122,11 +130,11 @@ def home_ui():
         ui.layout_columns(
             ui.card(
                 ui.card_header("Top Artists"),
-                ui.output_ui("top_artists_table"),
+                table_output("top_artists_table"),
             ),
             ui.card(
                 ui.card_header("Top Tracks"),
-                ui.output_ui("top_tracks_table"),
+                table_output("top_tracks_table"),
             ),
             col_widths=[6, 6],
         ),
@@ -171,7 +179,7 @@ def home_ui():
         ui.layout_columns(
             ui.card(
                 ui.card_header("Top Tags (Top 10,000)"),
-                ui.output_ui("top_tags_table"),
+                table_output("top_tags_table"),
             ),
             col_widths=[12],
         ),
@@ -240,18 +248,18 @@ def home_server(input, output, session):
             top_artists_raw(), input.artist_metric() or "scrobbles"
         )
 
-    @render.ui
+    @render_widget
     def top_artists_table():
         df = fmt(top_artists_raw(), ["Listeners", "Scrobbles"])
         df = linkify(df, "Artist", "ArtistUrl")
-        return dt(df, ARTISTS_COL_DEFS)
+        return ITable(df, **dt_options(ARTISTS_COL_DEFS))
 
-    @render.ui
+    @render_widget
     def top_tracks_table():
         df = fmt(top_tracks_raw(), ["Listeners", "Scrobbles"])
         df = linkify(df, "Track", "TrackUrl")
         df = linkify(df, "Artist", "ArtistUrl")
-        return dt(df, TRACKS_COL_DEFS)
+        return ITable(df, **dt_options(TRACKS_COL_DEFS))
 
     @render.text
     def top_track_artists_page_info():
@@ -267,8 +275,8 @@ def home_server(input, output, session):
             max_count=top_track_artist_max_tracks(),
         )
 
-    @render.ui
+    @render_widget
     def top_tags_table():
         df = fmt(get_global_top_tags(), ["Reach", "Taggings"])
         df = linkify(df, "Tag", "TagUrl")
-        return dt(df)
+        return ITable(df, **dt_options())

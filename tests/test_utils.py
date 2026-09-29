@@ -2,7 +2,7 @@ import xml.dom.minidom
 
 import pandas as pd
 
-from modules.utils import dt
+from modules.utils import dt_options
 from modules.utils import fmt as _fmt
 from modules.utils import text as _text
 
@@ -45,7 +45,15 @@ def test_fmt_untouched_columns_unchanged():
     assert result["Rank"].tolist() == [1, 2]
 
 
-def test_dt_returns_html():
+def test_dt_options_accepted_by_itables():
+    # ITable widgets can only be built inside a Shiny session, so validate the
+    # options with itables' HTML renderer, which takes the same arguments.
+    from itables import to_html_datatable
+
     df = pd.DataFrame({"Artist": ["Radiohead"], "Listeners": [1000]})
-    result = dt(df)
-    assert hasattr(result, "get_html_string") or "<table" in str(result).lower()
+    html = to_html_datatable(df, **dt_options([{"targets": 0, "width": "8%"}]))
+    assert "<table" in html
+
+
+def test_dt_options_defaults_to_no_column_defs():
+    assert dt_options()["columnDefs"] == []

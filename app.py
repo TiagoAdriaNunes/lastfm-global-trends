@@ -2,7 +2,6 @@ import asyncio
 import logging
 import queue
 
-from itables.shiny import init_itables
 from shiny import App, reactive, render, ui
 
 from modules.db import ensure_db
@@ -71,7 +70,6 @@ app_ui = ui.page_navbar(
             rel="stylesheet",
             href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap",
         ),
-        ui.HTML(init_itables()),
         ui.include_css("www/styles.css"),
     ),
     title="Last.fm Global Trends",

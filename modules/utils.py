@@ -1,8 +1,8 @@
 import xml.dom.minidom
 
 import pandas as pd
-from itables.shiny import DT
 from shiny import ui
+from shinywidgets import output_widget
 
 ARTISTS_COL_DEFS = [{"targets": 0, "width": "8%"}]
 TRACKS_COL_DEFS = [{"targets": 0, "width": "8%"}, {"targets": 1, "width": "35%"}]
@@ -37,8 +37,17 @@ def linkify(df: pd.DataFrame, col: str, url_col: str) -> pd.DataFrame:
     return df.drop(columns=[url_col])
 
 
+def table_output(id: str) -> ui.Tag:
+    """Output placeholder for an ITable widget, sized to the table's content.
+
+    Without an explicit height, output_widget() is a fill item capped at 400px
+    with overflow hidden, which clips the table's info line and pagination.
+    """
+    return output_widget(id, height="auto")
+
+
 def dt_options(column_defs: list | None = None) -> dict:
-    """itables options shared by static tables (dt) and updatable ITable widgets."""
+    """itables options shared by all ITable widgets in the app."""
     return {
         "pageLength": 10,
         "style": "width:100%;margin:0",
@@ -46,8 +55,3 @@ def dt_options(column_defs: list | None = None) -> dict:
         "maxBytes": 0,
         "allow_html": True,
     }
-
-
-def dt(df: pd.DataFrame, column_defs: list | None = None) -> ui.HTML:
-    """Render a DataFrame as an interactive itables DataTable widget."""
-    return ui.HTML(DT(df, **dt_options(column_defs)))
