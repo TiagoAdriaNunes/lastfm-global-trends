@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 .python-version
 data/
+
+# Deploy artifacts (see scripts/deploy.py)
+rsconnect-python/
+requirements.txt
+manifest.json

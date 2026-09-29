@@ -50,14 +50,6 @@ The `fetch_countries.py` script is used separately to rebuild the database from 
 
 ## Deployment
 
-### Generating requirements.txt
-
-Before deploying, generate the `requirements.txt` file:
-
-```bash
-uv export --no-dev --no-hashes --no-annotate -o requirements.txt
-```
-
 ### Deploying to shinyapps.io
 
 1. Install rsconnect-python:
@@ -66,40 +58,47 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
    uv add --dev rsconnect-python
    ```
 
-2. Get your credentials at [shinyapps.io](https://www.shinyapps.io) → Account → Tokens → Show → Show secret
+2. Get your rsconnect token at [shinyapps.io](https://www.shinyapps.io) → Account → Tokens:
 
-3. Configure the account (one-time setup):
+   - Click **Show** next to your token (or **Add Token** if you don't have one yet).
+   - In the dialog, open the **With Python** tab and click **Copy to clipboard**. This copies a ready-to-run `rsconnect add ...` command with your account name, token and secret filled in.
+   - Alternatively, click **Show secret** and copy the token and secret yourself.
+
+3. Configure the account (one-time setup) by pasting the copied command into your terminal (prefix it with `uv run` if the project's virtual environment isn't activated), or by running it with your own values:
 
    ```bash
-   rsconnect add \
+   uv run rsconnect add \
      --account YOUR_ACCOUNT_NAME \
      --name YOUR_ACCOUNT_NAME \
      --token YOUR_TOKEN \
      --secret YOUR_SECRET
    ```
 
-4. Deploy:
+   The credentials are saved locally by rsconnect-python, so you don't need to run this again on the same machine. Keep the token and secret out of the repository.
 
-   ```bash
-   rsconnect deploy shiny . \
-     --name YOUR_ACCOUNT_NAME \
-     --title lastfm-global-trends
+4. Add the deploy settings to your `.env`:
+
+   ```env
+   SHINYAPPS_ACCOUNT=your_account_name   # same name used in `rsconnect add --name`
+   SHINYAPPS_APP_ID=your_app_id          # ID of the existing app to update
+   KAGGLE_API_TOKEN=your_kaggle_token    # used by the deployed app to download trends.db
    ```
 
-   > **Redeploying an existing app:** The free tier allows only 5 apps. If you hit the limit, target the existing app by ID to update it in place instead of creating a new one:
-   >
-   > ```bash
-   > rsconnect deploy shiny . \
-   >   --name YOUR_ACCOUNT_NAME \
-   >   --title lastfm-global-trends \
-   >   --app-id YOUR_APP_ID
-   > ```
-   >
-   > To find the app ID: `rsconnect apps list --name YOUR_ACCOUNT_NAME`
+   To find the app ID: `uv run rsconnect apps list --name YOUR_ACCOUNT_NAME`.
 
-5. Set environment variables in the shinyapps.io dashboard:
+5. Deploy with the script:
 
-   Dashboard → your app → Settings → Environment Variables → add `KAGGLE_USERNAME` and `KAGGLE_KEY`.
+   ```bash
+   # Check which files would be uploaded (nothing is deployed)
+   uv run python scripts/deploy.py --dry-run
+
+   # Deploy, updating the existing app in place
+   uv run python scripts/deploy.py
+   ```
+
+   The script reads `SHINYAPPS_ACCOUNT` and `SHINYAPPS_APP_ID` from `.env` (or from `--account` / `--app-id`) and refuses to deploy if either is missing, so it never creates a new app by accident (the free tier allows only 5 apps). It generates `requirements.txt` from `uv.lock`, excludes the local `data/` folder and files the app doesn't need, and cleans up the files it generated.
+
+   > **Note:** `.env` is uploaded with the app on purpose. shinyapps.io doesn't receive environment variables from rsconnect, so the deployed app reads `KAGGLE_API_TOKEN` from the uploaded `.env` to download `trends.db`. Everything else in `.env` is uploaded too, so keep it limited to what you're happy to store on shinyapps.io.
 
 ## Rebuilding the database
 
