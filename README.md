@@ -120,7 +120,7 @@ uv export --no-dev --no-hashes --no-annotate -o requirements.txt
 uv run python fetch_countries.py
 ```
 
-Fetches all countries and global charts. Data already in the DB is skipped if it was fetched within the last **7 days** (default) and the row count looks complete.
+Fetches all countries and global charts. Country charts are limited to the top **1,000** artists and tracks per country. Data already in the DB is skipped if it was fetched within the last **7 days** (default) and the row count looks complete.
 
 Logs are written to `data/logs/run_<timestamp>.log` and a JSON summary to `data/logs/summary_<timestamp>.json`.
 
@@ -140,6 +140,16 @@ uv run python fetch_countries.py --max-age 0
 
 > **Note:** Even within the max-age window, a country is always re-fetched if the number of pages returned by the API no longer matches what is stored in the DB.
 
+#### `--max-rank N`
+
+Keeps only the top N artists and tracks per country. Defaults to `1000`. Rows beyond this rank are deleted from the DB at the start of each run.
+
+```bash
+uv run python fetch_countries.py --max-rank 500
+```
+
+> **Note:** The [Last.fm API Terms of Service](https://www.last.fm/api/tos) (clause 4.3.4) cap stored Last.fm data at **100 MB in total**, including anything published. Raising `--max-rank` increases the DB size, so keep the total under that limit.
+
 #### `--only` — Fetch specific countries
 
 ```bash
@@ -158,10 +168,10 @@ On each run, for every country the script:
 
 1. Checks `fetched_at` in the DB — if older than `--max-age`, marks it **stale**
 2. Fetches page 1 from the API (always, to get the current page count)
-3. Compares the API page count against the DB row count:
+3. Compares the API page count (capped at `--max-rank`) against the DB row count:
    - **Fresh + count matches** → skip entirely, no write
-   - **Fresh + count mismatch** → re-fetch all pages and replace DB rows
-   - **Stale** → re-fetch all pages and replace DB rows unconditionally
+   - **Fresh + count mismatch** → re-fetch up to `--max-rank` rows and replace DB rows
+   - **Stale** → re-fetch up to `--max-rank` rows and replace DB rows unconditionally
 
 ### Scheduling (cron example)
 

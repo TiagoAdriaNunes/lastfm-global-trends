@@ -38,6 +38,7 @@ RETRY_BACKOFF = 5  # seconds to wait between retries
 GLOBAL_MAX_AGE_HOURS = 72   # 3 days — global charts update more frequently
 GEO_MAX_AGE_HOURS = 168     # 7 days — country charts are slower to change
 DEFAULT_MAX_AGE_HOURS = GEO_MAX_AGE_HOURS  # keep for back-compat
+MAX_RANK = 1000  # top N artists/tracks kept per country (Last.fm API ToS: 100 MB cap)
 
 log = logging.getLogger(__name__)
 
@@ -267,14 +268,20 @@ def _parse_page1_tracks(doc: object, country: str) -> list[dict]:
     return rows
 
 
+def _max_geo_pages(max_rank: int) -> int:
+    """Pages needed to reach max_rank rows for a country chart."""
+    return -(-max_rank // FETCH_LIMIT)
+
+
 def fetch_geo_artists(
     network: pylast.LastFMNetwork,
     country: str,
     con: duckdb.DuckDBPyConnection,
     run_errors: list[str],
     max_age_hours: float,
+    max_rank: int = MAX_RANK,
 ) -> tuple[list[dict], bool]:
-    """Fetch top artists for a country.
+    """Fetch the top max_rank artists for a country.
 
     Returns (rows, force_upsert). force_upsert=True when data was stale or the
     API total didn't match the DB — callers should bypass the unchanged check.
@@ -287,11 +294,11 @@ def fetch_geo_artists(
     if doc is None:
         return [], False
 
-    total_pages = _total_pages(doc, "topartists")
+    total_pages = min(_total_pages(doc, "topartists"), _max_geo_pages(max_rank))
     db_count = _db_count(con, "geo_top_artists", country)
     # api_total is a listener-count metric, not a row count — use total_pages instead.
-    # db_count is complete if it falls in ((total_pages-1)×limit, total_pages×limit].
-    count_ok = (total_pages - 1) * FETCH_LIMIT < db_count <= total_pages * FETCH_LIMIT
+    # db_count is complete if it falls in ((total_pages-1)×limit, min(total_pages×limit, max_rank)].
+    count_ok = (total_pages - 1) * FETCH_LIMIT < db_count <= min(total_pages * FETCH_LIMIT, max_rank)
 
     if not stale and count_ok:
         log.info("  artists up to date (%d rows), skipping", db_count)
@@ -302,7 +309,7 @@ def fetch_geo_artists(
             "  count mismatch (db=%d expected %d–%d) — re-fetching despite fresh data",
             db_count,
             (total_pages - 1) * FETCH_LIMIT + 1,
-            total_pages * FETCH_LIMIT,
+            min(total_pages * FETCH_LIMIT, max_rank),
         )
 
     rows = _parse_page1_artists(doc, country)
@@ -323,6 +330,7 @@ def fetch_geo_artists(
                     "listeners": int(text(el, "listeners") or 0),
                 }
             )
+    rows = rows[:max_rank]
     log.info("  → %d rows (%d pages)", len(rows), total_pages)
     return rows, True  # force upsert — data was stale or count mismatched
 
@@ -333,8 +341,9 @@ def fetch_geo_tracks(
     con: duckdb.DuckDBPyConnection,
     run_errors: list[str],
     max_age_hours: float,
+    max_rank: int = MAX_RANK,
 ) -> tuple[list[dict], bool]:
-    """Fetch top tracks for a country.
+    """Fetch the top max_rank tracks for a country.
 
     Returns (rows, force_upsert). See fetch_geo_artists for semantics.
     """
@@ -345,9 +354,9 @@ def fetch_geo_tracks(
     if doc is None:
         return [], False
 
-    total_pages = _total_pages(doc, "tracks")
+    total_pages = min(_total_pages(doc, "tracks"), _max_geo_pages(max_rank))
     db_count = _db_count(con, "geo_top_tracks", country)
-    count_ok = (total_pages - 1) * FETCH_LIMIT < db_count <= total_pages * FETCH_LIMIT
+    count_ok = (total_pages - 1) * FETCH_LIMIT < db_count <= min(total_pages * FETCH_LIMIT, max_rank)
 
     if not stale and count_ok:
         log.info("  tracks up to date (%d rows), skipping", db_count)
@@ -358,7 +367,7 @@ def fetch_geo_tracks(
             "  count mismatch (db=%d expected %d–%d) — re-fetching despite fresh data",
             db_count,
             (total_pages - 1) * FETCH_LIMIT + 1,
-            total_pages * FETCH_LIMIT,
+            min(total_pages * FETCH_LIMIT, max_rank),
         )
 
     rows = _parse_page1_tracks(doc, country)
@@ -383,6 +392,7 @@ def fetch_geo_tracks(
                     "playcount": int(text(el, "playcount") or 0),
                 }
             )
+    rows = rows[:max_rank]
     log.info("  → %d rows (%d pages)", len(rows), total_pages)
     return rows, True
 
@@ -746,7 +756,17 @@ def main() -> None:
         default=GLOBAL_MAX_AGE_HOURS,
         help=f"Re-fetch global charts older than this many hours (default: {GLOBAL_MAX_AGE_HOURS} = 3 days).",
     )
+    parser.add_argument(
+        "--max-rank",
+        metavar="N",
+        type=int,
+        default=MAX_RANK,
+        help=f"Keep only the top N artists/tracks per country (default: {MAX_RANK}). "
+             "Rows beyond this rank are deleted from the DB. Last.fm API ToS caps stored data at 100 MB.",
+    )
     args = parser.parse_args()
+    if args.max_rank < 1:
+        parser.error("--max-rank must be at least 1")
 
     api_key = os.environ.get("LASTFM_API_KEY")
     api_secret = os.environ.get("LASTFM_API_SECRET")
@@ -774,6 +794,7 @@ def main() -> None:
     run_errors: list[str] = []
     geo_max_age: float = args.max_age
     global_max_age: float = args.global_max_age
+    max_rank: int = args.max_rank
 
     network = pylast.LastFMNetwork(api_key=api_key, api_secret=api_secret)
 
@@ -791,6 +812,12 @@ def main() -> None:
 
     with con_ctx as con:
         schema_changed = setup_db(con)
+
+        # Trim rows beyond max_rank left over from earlier uncapped runs.
+        for tbl in ("geo_top_artists", "geo_top_tracks"):
+            trimmed = con.execute(f"DELETE FROM {tbl} WHERE rank > ?", [max_rank]).fetchone()[0]
+            if trimmed:
+                log.info("Trimmed %d rows beyond rank %d from %s", trimmed, max_rank, tbl)
 
         def _age(tbl: str, base_hours: float) -> float:
             """Return 0 (force refresh) if the table schema changed, else base_hours."""
@@ -829,7 +856,7 @@ def main() -> None:
             log.info("[%d/%d] %s", i, total, country)
             stat = {"country": country, "artists": 0, "tracks": 0, "status": "ok"}
 
-            artists, force = fetch_geo_artists(network, api_country, con, run_errors, _age("geo_top_artists", geo_max_age))
+            artists, force = fetch_geo_artists(network, api_country, con, run_errors, _age("geo_top_artists", geo_max_age), max_rank)
             t0 = time.monotonic()
             skipped = upsert_artists(con, artists, force, run_errors)
             if not skipped:
@@ -843,7 +870,7 @@ def main() -> None:
                 )
             time.sleep(REQUEST_DELAY)
 
-            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, _age("geo_top_tracks", geo_max_age))
+            tracks, force = fetch_geo_tracks(network, api_country, con, run_errors, _age("geo_top_tracks", geo_max_age), max_rank)
             t0 = time.monotonic()
             skipped = upsert_tracks(con, tracks, force, run_errors)
             if not skipped:
@@ -879,6 +906,7 @@ def main() -> None:
             "db": str(DB_PATH),
             "global_max_age_hours": global_max_age,
             "geo_max_age_hours": geo_max_age,
+            "max_rank": max_rank,
             "global": {"artists": global_artist_count, "tracks": global_track_count, "tags": global_tag_count},
             "geo": {"artists": artist_count, "tracks": track_count},
             "countries": country_stats,
